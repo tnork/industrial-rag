@@ -26,7 +26,7 @@ if _zip.exists() and not _images_dir.exists():
     print(f"✓ Extracted {n} chunk images", flush=True)
 
 # ── Load RAG resources ─────────────────────────────────────────────────────
-from parse_and_extract import build_vector_store, _build_chunk_image_map, make_flask_app
+from web_app import build_vector_store, _build_chunk_image_map, make_flask_app
 
 embedder, vectors, store = build_vector_store(force=False)
 image_map = _build_chunk_image_map()

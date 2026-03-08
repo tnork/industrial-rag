@@ -56,16 +56,16 @@ Set `ANTHROPIC_API_KEY` as a Space secret in the HuggingFace Space settings.
 pip install anthropic sentence-transformers numpy flask gunicorn python-dotenv pymupdf Pillow
 
 # Download GE Connect Series PDFs
-python download_ge_hvac_manuals.py
+python web_app.py --download
 
 # Parse PDFs with LandingAI ADE (requires VISION_AGENT_API_KEY)
-python parse_and_extract.py --parse --all
+python web_app.py --parse --all
 
 # Build vector store
-python parse_and_extract.py --rebuild
+python web_app.py --rebuild
 
 # Run locally (port 8080)
-python parse_and_extract.py
+python web_app.py
 
 # Or use the HF Spaces entrypoint (port 7860, matches Dockerfile CMD)
 gunicorn --worker-class gthread --threads 4 --timeout 300 --bind 0.0.0.0:7860 app:application
