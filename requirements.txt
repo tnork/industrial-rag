@@ -6,3 +6,5 @@ gunicorn
 python-dotenv
 pymupdf
 Pillow
+requests
+beautifulsoup4
