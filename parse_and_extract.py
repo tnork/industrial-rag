@@ -685,10 +685,12 @@ def run_web(embedder, vectors, store, image_map):
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
 
-    print("\n" + "─" * 60)
-    print("GE HVAC Manuals RAG  →  http://localhost:8080")
+    import os
+    port = int(os.environ.get("PORT", 7860))
+    print(f"\n" + "─" * 60)
+    print(f"GE HVAC Manuals RAG  →  http://localhost:{port}")
     print("─" * 60 + "\n")
-    flask_app.run(debug=False, port=8080, threaded=True)
+    flask_app.run(debug=False, host="0.0.0.0", port=port, threaded=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -715,11 +717,12 @@ def main():
         return
 
     # ── RAG modes — build shared resources ───────────────────────────────────
-    if not PARSE_RESULTS.exists() or not any(PARSE_RESULTS.rglob("*.txt")):
+    force_rebuild = "--rebuild" in flags
+    # If forcing a rebuild, parse_results are required as source data
+    if force_rebuild and (not PARSE_RESULTS.exists() or not any(PARSE_RESULTS.rglob("*.txt"))):
         print("No parse results found. Run 'python parse_and_extract.py --parse' first.")
         sys.exit(1)
-
-    force_rebuild = "--rebuild" in flags
+    # Without --rebuild, fall through to load the pre-built vector store directly
     embedder, vectors, store = build_vector_store(force=force_rebuild)
     image_map = _build_chunk_image_map()
     print(f"✓ {len(image_map)} chunk images indexed")
