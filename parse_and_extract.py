@@ -580,7 +580,8 @@ def run_terminal(embedder, vectors, store, image_map):
 # SECTION 5 — FLASK WEB APP
 # ══════════════════════════════════════════════════════════════════════════════
 
-def run_web(embedder, vectors, store, image_map):
+def make_flask_app(embedder, vectors, store, image_map):
+    """Create and return the configured Flask app (used by gunicorn and run_web)."""
     import anthropic
     from flask import Flask, Response, render_template, send_file, stream_with_context, request, make_response
 
@@ -642,42 +643,48 @@ def run_web(embedder, vectors, store, image_map):
             return Response('data: {"error": "No question provided"}\n\n', mimetype="text/event-stream")
 
         def generate():
-            hits    = similarity_search(embedder, vectors, store, question)
-            context = _context_from_hits(hits)
+            try:
+                hits    = similarity_search(embedder, vectors, store, question)
+                context = _context_from_hits(hits)
 
-            sources = []
-            for h in hits:
-                img = image_map.get(h["id"])
-                img_url = f"/chunk_images/{img.relative_to(CHUNK_IMAGES)}" if img else None
-                sources.append({
-                    "similarity": round(h["similarity"], 3),
-                    "chunk_type": h["chunk_type"],
-                    "page":       h["page"] + 1,
-                    "text":       h["text"][:200],
-                    "image_url":  img_url,
-                    "doc":        h["_doc_stem"],
-                    "category":   h["_category"],
-                    "bbox":       h.get("bbox", {}),
-                })
+                sources = []
+                for h in hits:
+                    img = image_map.get(h["id"])
+                    img_url = f"/chunk_images/{img.relative_to(CHUNK_IMAGES)}" if img else None
+                    sources.append({
+                        "similarity": round(h["similarity"], 3),
+                        "chunk_type": h["chunk_type"],
+                        "page":       h["page"] + 1,
+                        "text":       h["text"][:200],
+                        "image_url":  img_url,
+                        "doc":        h["_doc_stem"],
+                        "category":   h["_category"],
+                        "bbox":       h.get("bbox", {}),
+                    })
 
-            yield f"data: {json.dumps({'type': 'sources', 'sources': sources})}\n\n"
+                yield f"data: {json.dumps({'type': 'sources', 'sources': sources})}\n\n"
 
-            with ant_client.messages.stream(
-                model=CLAUDE_MODEL,
-                max_tokens=1024,
-                system=(
-                    "You are a technical support assistant for GE Appliances HVAC products. "
-                    "Answer questions using only the retrieved context from GE HVAC product manuals, "
-                    "installation guides, service manuals, and spec sheets below. "
-                    "If the answer is not in the context, say so.\n\n"
-                    f"{context}"
-                ),
-                messages=[{"role": "user", "content": question}],
-            ) as stream:
-                for text in stream.text_stream:
-                    yield f"data: {json.dumps({'type': 'token', 'text': text})}\n\n"
+                with ant_client.messages.stream(
+                    model=CLAUDE_MODEL,
+                    max_tokens=1024,
+                    system=(
+                        "You are a technical support assistant for GE Appliances HVAC products. "
+                        "Answer questions using only the retrieved context from GE HVAC product manuals, "
+                        "installation guides, service manuals, and spec sheets below. "
+                        "If the answer is not in the context, say so.\n\n"
+                        f"{context}"
+                    ),
+                    messages=[{"role": "user", "content": question}],
+                ) as stream:
+                    for text in stream.text_stream:
+                        yield f"data: {json.dumps({'type': 'token', 'text': text})}\n\n"
 
-            yield f"data: {json.dumps({'type': 'done'})}\n\n"
+                yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
+            except Exception as e:
+                import traceback
+                print(traceback.format_exc(), flush=True)
+                yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
 
         return Response(
             stream_with_context(generate()),
@@ -685,7 +692,12 @@ def run_web(embedder, vectors, store, image_map):
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
 
+    return flask_app
+
+
+def run_web(embedder, vectors, store, image_map):
     import os
+    flask_app = make_flask_app(embedder, vectors, store, image_map)
     port = int(os.environ.get("PORT", 7860))
     print(f"\n" + "─" * 60)
     print(f"GE HVAC Manuals RAG  →  http://localhost:{port}")

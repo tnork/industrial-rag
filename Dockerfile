@@ -13,9 +13,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Pre-cache the sentence-transformer model into this image layer
-# so cold starts don't require a download from HF Hub
-RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
+# Pin the model cache to a known path inside the image layer
+ENV SENTENCE_TRANSFORMERS_HOME=/app/.cache/sentence_transformers
+ENV HF_HOME=/app/.cache/huggingface
+
+# Pre-cache the sentence-transformer model into this image layer.
+# HF_HUB_OFFLINE is temporarily unset during this build step so the
+# download succeeds; at runtime it is set to 1 to prevent DNS lookups.
+RUN HF_HUB_OFFLINE=0 python -c \
+    "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
+
+# Prevent huggingface_hub from making any network calls at runtime
+# (model is already cached in the image layer above)
+ENV HF_HUB_OFFLINE=1
 
 # Copy all application files (vector_store, chunk_images.zip, templates, etc.)
 COPY . .
@@ -23,5 +33,14 @@ COPY . .
 # HF Spaces exposes port 7860 by default
 EXPOSE 7860
 
-# app.py handles zip extraction, vector store load, and Flask startup
-CMD ["python", "app.py"]
+# gunicorn with gthread workers properly handles long-lived SSE streaming
+# behind HF Spaces' HTTP/2 proxy (Flask dev server does not).
+# No --preload so gunicorn binds port 7860 immediately and HF health check passes
+# while workers load the model in the background.
+CMD ["gunicorn", \
+     "--worker-class", "gthread", \
+     "--workers", "1", \
+     "--threads", "4", \
+     "--timeout", "300", \
+     "--bind", "0.0.0.0:7860", \
+     "app:application"]

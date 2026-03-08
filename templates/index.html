@@ -161,7 +161,7 @@
 
     .messages {
       flex: 1; overflow-y: auto;
-      padding: 0 36px 32px;
+      padding: 24px 36px 32px;
       display: flex; flex-direction: column; gap: 28px;
     }
     .messages::-webkit-scrollbar { width: 5px; }
@@ -195,7 +195,7 @@
       max-width: 780px; width: 100%;
     }
     .chips { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .chip:last-child:nth-child(odd) { grid-column: 1 / -1; max-width: 60%; margin: 0 auto; width: 100%; }
+
     .chip {
       padding: 14px 16px;
       background: var(--bg); border: 1.5px solid var(--border);
@@ -375,11 +375,11 @@
     .sim-val { font-size: 11.5px; font-weight: 700; color: var(--blue); flex-shrink: 0; }
 
     /* ── Nav buttons (header) ────────────────────────────────────────────── */
-    .nav-btns { display: flex; flex-direction: column; gap: 4px; }
+    .nav-btns { display: flex; flex-direction: row; gap: 8px; }
     .nav-btn {
-      display: flex; align-items: center; gap: 6px;
-      padding: 5px 12px; border-radius: 7px;
-      font-size: 12px; font-weight: 600; cursor: pointer;
+      display: flex; align-items: center; gap: 7px;
+      padding: 7px 16px; border-radius: 8px;
+      font-size: 13px; font-weight: 600; cursor: pointer;
       font-family: inherit; border: 1.5px solid; transition: all 0.15s;
       white-space: nowrap; line-height: 1;
     }
@@ -542,14 +542,14 @@
     <div class="header-right">
       <div class="nav-btns">
         <button class="nav-btn nav-btn-chat" onclick="goHome()">
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
             <path d="M8 2C4.686 2 2 4.686 2 8s2.686 6 6 6 6-2.686 6-6-2.686-6-6-6z" stroke="#027eea" stroke-width="1.5"/>
             <path d="M8 6v2l1.5 1.5" stroke="#027eea" stroke-width="1.5" stroke-linecap="round"/>
           </svg>
           Claude Explorer
         </button>
         <button class="nav-btn nav-btn-docs" onclick="openDocViewer()">
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
             <path d="M2 3h12M2 7h9M2 11h6" stroke="#2e7d12" stroke-width="1.6" stroke-linecap="round"/>
           </svg>
           Original Doc Viewer
@@ -588,13 +588,12 @@
             </svg>
           </div>
           <h2>GE Connect Technical Assistant —<br>every answer traced back to the source page</h2>
-          <p>Built on <strong>LandingAI ADE</strong> and <span style="color:var(--claude);font-weight:600;">Claude Opus</span>.<br>1,478 chunks with 384-dim embeddings vector store for source provenance.<br>Ask about GE Connect maintenance, refrigerants, and installation.</p>
+          <p>Built on <strong>LandingAI ADE</strong> and <span style="color:var(--claude);font-weight:600;">Claude Opus</span>.<br>1,478 chunks with source images on the right.<br>Ask about GE Connect maintenance, refrigerants, and installation.</p>
           <div class="chips-wrap">
           <div class="chips">
             <button class="chip" onclick="sendChip(this)">What are all the connection points on the outdoor unit used during the evacuation and charging process?</button>
             <button class="chip" onclick="sendChip(this)">How do I properly connect the manifold gauge set to the outdoor unit for evacuation and refrigerant charging?</button>
             <button class="chip" onclick="sendChip(this)">What wiring configuration is required between the GE Connect indoor and outdoor units, including terminal designations?</button>
-            <button class="chip" onclick="sendChip(this)">What are the electrical supply requirements (voltage, amperage, and circuit breaker size) for the GE Connect outdoor unit?</button>
             <button class="chip" onclick="sendChip(this)">What happens if the low pressure switch opens a second time?</button>
           </div>
           </div>
@@ -604,7 +603,7 @@
       <div class="input-bar">
         <div class="input-wrap">
           <textarea id="question" rows="1"
-            placeholder="Ask a question about GE Appliances HVAC products..."
+            placeholder="Ask about GE Connect maintenance, refrigerants, and installation..."
             onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
           <button id="send-btn" onclick="sendQuestion()" title="Send">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -711,13 +710,12 @@
         </svg>
       </div>
       <h2>GE Connect Technical Assistant —<br>every answer traced back to the source page</h2>
-      <p>Built on <strong>LandingAI ADE</strong> and <span style="color:var(--claude);font-weight:600;">Claude Opus</span>.<br>1,478 chunks with 384-dim embeddings vector store for source provenance.<br>Ask about GE Connect maintenance, refrigerants, and installation.</p>
+      <p>Built on <strong>LandingAI ADE</strong> and <span style="color:var(--claude);font-weight:600;">Claude Opus</span>.<br>1,478 chunks with source images on the right.<br>Ask about GE Connect maintenance, refrigerants, and installation.</p>
       <div class="chips-wrap">
       <div class="chips">
         <button class="chip" onclick="sendChip(this)">What are all the connection points on the outdoor unit used during the evacuation and charging process?</button>
         <button class="chip" onclick="sendChip(this)">How do I properly connect the manifold gauge set to the outdoor unit for evacuation and refrigerant charging?</button>
         <button class="chip" onclick="sendChip(this)">What wiring configuration is required between the GE Connect indoor and outdoor units, including terminal designations?</button>
-        <button class="chip" onclick="sendChip(this)">What are the electrical supply requirements (voltage, amperage, and circuit breaker size) for the GE Connect outdoor unit?</button>
         <button class="chip" onclick="sendChip(this)">What happens if the low pressure switch opens a second time?</button>
       </div>
       </div>
@@ -765,8 +763,8 @@
       } else if (d.type === "done") {
         textEl.innerHTML = renderMd(full);
         es.close(); finish();
-      } else if (d.error) {
-        textEl.textContent = "Error: " + d.error;
+      } else if (d.type === "error" || d.error) {
+        textEl.textContent = "Error: " + (d.error || d.message || "Unknown error");
         es.close(); finish();
       }
     };
@@ -963,11 +961,7 @@
   }
 
   function openPDF(folder, filename) {
-    document.getElementById('dv-files').style.display = 'none';
-    document.getElementById('dv-pdf').style.display = 'flex';
-    document.getElementById('dv-toolbar-title').textContent = filename;
-    document.getElementById('dv-back-btn').classList.add('visible');
-    document.getElementById('dv-iframe').src = '/pdf/' + folder + '/' + encodeURIComponent(filename);
+    window.open('/pdf/' + folder + '/' + encodeURIComponent(filename), '_blank');
   }
 
   function backToFiles() {

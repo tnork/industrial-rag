@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## LandingAI ADE Documentation Note
 
-This repo uses the `landingai-ade` skill for LandingAI API knowledge. The skill was last synced on **2026-03-07**. When working in this repo, check whether the LandingAI ADE documentation has been updated since that date. If new docs are available, update the skill file at `~/.claude/skills/landingai-ade/` before proceeding with any ADE-related tasks.
+The `landingai-ade` skill is installed globally at `~/.claude/skills/landingai-ade/` (last synced **2026-03-07**). When working on ADE-related tasks in this repo, check whether the LandingAI ADE documentation has been updated since that date and update the global skill if needed.
 
 ---
 

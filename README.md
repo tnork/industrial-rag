@@ -19,7 +19,7 @@ A retrieval-augmented generation (RAG) system for querying GE Connect Series HVA
 - Answers technical questions about GE Connect Series heat pumps and HVAC equipment
 - Retrieves relevant context from 7 GE Connect Series PDFs (service manuals, installation guides, spec sheets, submittal docs)
 - Streams answers via Claude Opus 4.6 with source citations and chunk preview images
-- Includes an Original Doc Viewer for browsing source PDFs in-browser
+- Includes an Original Doc Viewer for browsing source PDFs (opens in new tab)
 
 ## Corpus
 
@@ -53,7 +53,7 @@ Set `ANTHROPIC_API_KEY` as a Space secret in the HuggingFace Space settings.
 
 ```bash
 # Install dependencies
-pip install anthropic sentence-transformers numpy flask python-dotenv pymupdf Pillow
+pip install anthropic sentence-transformers numpy flask gunicorn python-dotenv pymupdf Pillow
 
 # Download GE Connect Series PDFs
 python download_ge_hvac_manuals.py
@@ -67,6 +67,6 @@ python parse_and_extract.py --rebuild
 # Run locally (port 8080)
 python parse_and_extract.py
 
-# Or use the HF Spaces entrypoint (port 7860)
-python app.py
+# Or use the HF Spaces entrypoint (port 7860, matches Dockerfile CMD)
+gunicorn --worker-class gthread --threads 4 --timeout 300 --bind 0.0.0.0:7860 app:application
 ```

@@ -2,6 +2,7 @@ anthropic
 sentence-transformers
 numpy
 flask
+gunicorn
 python-dotenv
 pymupdf
 Pillow

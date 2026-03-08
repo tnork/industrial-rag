@@ -5,7 +5,10 @@ On cold start:
   1. Extract chunk_images.zip → chunk_images/ (if zip present and dir missing)
   2. Load vector store from vector_store/ (embeddings.npy + documents.json)
   3. Index chunk image map
-  4. Start Flask on PORT (default 7860 for HF Spaces)
+  4. Expose Flask app as `application` for gunicorn
+
+Run with:
+  gunicorn --worker-class gthread --threads 4 --timeout 300 --bind 0.0.0.0:7860 app:application
 """
 
 import zipfile
@@ -22,11 +25,12 @@ if _zip.exists() and not _images_dir.exists():
     n = len(list(_images_dir.rglob("*.png")))
     print(f"✓ Extracted {n} chunk images", flush=True)
 
-# ── Load RAG resources and start web server ────────────────────────────────
-from parse_and_extract import build_vector_store, _build_chunk_image_map, run_web
+# ── Load RAG resources ─────────────────────────────────────────────────────
+from parse_and_extract import build_vector_store, _build_chunk_image_map, make_flask_app
 
 embedder, vectors, store = build_vector_store(force=False)
 image_map = _build_chunk_image_map()
 print(f"✓ {len(image_map)} chunk images indexed", flush=True)
 
-run_web(embedder, vectors, store, image_map)
+# ── Expose Flask app for gunicorn ──────────────────────────────────────────
+application = make_flask_app(embedder, vectors, store, image_map)
