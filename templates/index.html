@@ -146,15 +146,15 @@
     }
     .chat-toolbar.visible { display: flex; align-items: center; gap: 10px; }
     @keyframes orange-pulse {
-      0%,100% { box-shadow: 0 0 6px rgba(217,119,81,0.35), inset 0 0 14px rgba(217,119,81,0.10); background: radial-gradient(circle at 50% 50%, rgba(217,119,81,0.13) 0%, var(--bg) 72%); }
-      50%      { box-shadow: 0 0 14px rgba(217,119,81,0.55), inset 0 0 22px rgba(217,119,81,0.18); background: radial-gradient(circle at 50% 50%, rgba(217,119,81,0.22) 0%, var(--bg) 80%); }
+      0%,100% { box-shadow: 0 0 6px rgba(217,119,81,0.35); }
+      50%      { box-shadow: 0 0 14px rgba(217,119,81,0.60); }
     }
     .back-btn {
       display: flex; align-items: center; gap: 6px;
       padding: 7px 14px;
-      background: radial-gradient(circle at 50% 50%, rgba(217,119,81,0.13) 0%, var(--bg) 72%);
+      background: var(--bg);
       border: 1.5px solid var(--border);
-      box-shadow: 0 0 6px rgba(217,119,81,0.35), inset 0 0 14px rgba(217,119,81,0.10);
+      box-shadow: 0 0 6px rgba(217,119,81,0.35);
       animation: orange-pulse 2.5s ease-in-out infinite;
       border-radius: 8px; cursor: pointer;
       font-size: 14px; font-weight: 500; color: var(--muted);
