@@ -145,22 +145,15 @@
       background: var(--bg-mid);
     }
     .chat-toolbar.visible { display: flex; align-items: center; gap: 10px; }
-    @keyframes orange-pulse {
-      0%,100% { box-shadow: 0 0 6px rgba(217,119,81,0.35); }
-      50%      { box-shadow: 0 0 14px rgba(217,119,81,0.60); }
-    }
     .back-btn {
       display: flex; align-items: center; gap: 6px;
       padding: 7px 14px;
-      background: var(--bg);
-      border: 1.5px solid var(--border);
-      box-shadow: 0 0 6px rgba(217,119,81,0.35);
-      animation: orange-pulse 2.5s ease-in-out infinite;
+      background: var(--bg); border: 1.5px solid var(--border);
       border-radius: 8px; cursor: pointer;
       font-size: 14px; font-weight: 500; color: var(--muted);
       font-family: inherit; transition: all 0.15s;
     }
-    .back-btn:hover { border-color: var(--blue); color: var(--blue); background: var(--blue-pale); animation: none; box-shadow: none; }
+    .back-btn:hover { border-color: var(--blue); color: var(--blue); background: var(--blue-pale); }
     .back-btn svg { flex-shrink: 0; }
     .toolbar-title {
       font-size: 14px; font-weight: 500; color: var(--head);
