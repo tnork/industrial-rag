@@ -14,3 +14,4 @@ ge_hvac_manuals/
 
 # Parse results — regenerate with --parse --all
 parse_results/
+ge_hvac_manuals.zip
