@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip3 install beautifulsoup4 requests -q)",
+      "Bash(python3 download_ge_hvac_manuals.py)",
+      "Bash(python3 parse_and_extract.py --parse --all)"
+    ]
+  }
+}

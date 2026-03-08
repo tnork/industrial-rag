@@ -1,0 +1,984 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>GE HVAC Manuals — Document Q&A</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Commissioner:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --blue:       #027eea;
+      --blue-dark:  #0060c0;
+      --blue-deep:  #053e68;
+      --blue-light: #deeefb;
+      --blue-pale:  #f0f7ff;
+      --cyan:       #6dc7e1;
+      --green:      #62d134;
+      --grad:       linear-gradient(135deg, #027EEA 0%, #62D134 100%);
+      --grad-h:     linear-gradient(270deg, #62D134 0%, #027EEA 82.88%);
+      --bg:         #ffffff;
+      --bg-mid:     #f5f8fc;
+      --bg-side:    #f0f4f9;
+      --border:     #dde3ec;
+      --border-s:   #eaeff5;
+      --head:       #053e68;
+      --body:       #2d3a4a;
+      --muted:      #6b7a8d;
+      --light:      #a8b4c0;
+      --claude:     #d97757;
+      --claude-bg:  #fff4ef;
+      --r:          12px;
+      --sh-sm:      0 1px 3px rgba(5,62,104,0.07), 0 1px 2px rgba(5,62,104,0.04);
+      --sh-md:      0 4px 12px rgba(5,62,104,0.10), 0 2px 4px rgba(5,62,104,0.06);
+      --sh-lg:      0 8px 28px rgba(5,62,104,0.13), 0 3px 8px rgba(5,62,104,0.07);
+    }
+
+    html, body {
+      height: 100%; overflow: hidden;
+      font-family: 'Commissioner', -apple-system, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--body);
+      font-size: 16px;
+    }
+
+    /* ── Background ───────────────────────────────────────────────────────── */
+    .bg {
+      position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden;
+    }
+    .bg::before {
+      content: "";
+      position: absolute; top: -300px; right: -200px;
+      width: 800px; height: 800px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(2,126,234,0.07) 0%, transparent 65%);
+      animation: fa 16s ease-in-out infinite alternate;
+    }
+    .bg::after {
+      content: "";
+      position: absolute; bottom: -200px; left: -100px;
+      width: 600px; height: 600px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(98,209,52,0.06) 0%, transparent 65%);
+      animation: fb 20s ease-in-out infinite alternate;
+    }
+    @keyframes fa { 0%{transform:translate(0,0)} 100%{transform:translate(-50px,70px)} }
+    @keyframes fb { 0%{transform:translate(0,0)} 100%{transform:translate(70px,-50px)} }
+    .bg-dots {
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      background-image: radial-gradient(circle, rgba(2,114,234,0.09) 1px, transparent 1px);
+      background-size: 30px 30px;
+    }
+
+    /* ── Layout ───────────────────────────────────────────────────────────── */
+    .layout { position: relative; z-index: 1; display: flex; flex-direction: column; height: 100vh; }
+
+    /* ── Header ───────────────────────────────────────────────────────────── */
+    header {
+      position: relative;
+      display: flex; align-items: center;
+      height: 64px; padding: 0 28px;
+      background: rgba(255,255,255,0.96);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--border-s);
+      box-shadow: var(--sh-sm);
+      flex-shrink: 0;
+    }
+    .grad-bar {
+      position: absolute; top: 0; left: 0; right: 0; height: 3px;
+      background: var(--grad-h);
+    }
+
+    .header-left { display: flex; align-items: center; gap: 0; }
+    .logo-svg { height: 24px; width: auto; }
+
+    .h-div { width: 1px; height: 26px; background: var(--border); margin: 0 20px; }
+
+    .claude-pill {
+      display: flex; align-items: center; gap: 8px;
+      background: var(--claude-bg);
+      border: 1.5px solid rgba(217,119,87,0.22);
+      border-radius: 22px; padding: 5px 13px 5px 7px;
+    }
+    .claude-dot {
+      width: 28px; height: 28px; border-radius: 8px;
+      background: var(--claude-bg);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .claude-lbl { font-size: 13px; font-weight: 600; color: var(--claude); }
+
+    .header-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+
+    .doc-tag {
+      display: flex; align-items: center; gap: 6px;
+      background: var(--blue-pale); border: 1px solid rgba(2,126,234,0.18);
+      border-radius: 7px; padding: 5px 11px;
+      font-size: 13px; font-weight: 500; color: var(--blue);
+    }
+    .status-tag {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 13px; color: var(--muted); font-weight: 500;
+    }
+    .s-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--green); box-shadow: 0 0 6px rgba(98,209,52,0.5);
+      animation: pulse 2.5s ease-in-out infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.55;transform:scale(0.8)} }
+
+    /* ── Main ─────────────────────────────────────────────────────────────── */
+    .main { display: flex; flex: 1; overflow: hidden; }
+
+    /* ── Chat panel ───────────────────────────────────────────────────────── */
+    .chat-panel {
+      display: flex; flex-direction: column;
+      flex: 1; min-width: 0;
+      border-right: 1px solid var(--border-s);
+      background: var(--bg);
+    }
+
+    /* chat toolbar */
+    .chat-toolbar {
+      display: none;
+      padding: 10px 24px;
+      border-bottom: 1px solid var(--border-s);
+      background: var(--bg-mid);
+    }
+    .chat-toolbar.visible { display: flex; align-items: center; gap: 10px; }
+    .back-btn {
+      display: flex; align-items: center; gap: 6px;
+      padding: 7px 14px;
+      background: var(--bg); border: 1.5px solid var(--border);
+      border-radius: 8px; cursor: pointer;
+      font-size: 14px; font-weight: 500; color: var(--muted);
+      font-family: inherit; transition: all 0.15s;
+    }
+    .back-btn:hover { border-color: var(--blue); color: var(--blue); background: var(--blue-pale); }
+    .back-btn svg { flex-shrink: 0; }
+    .toolbar-title {
+      font-size: 14px; font-weight: 500; color: var(--head);
+    }
+
+    .messages {
+      flex: 1; overflow-y: auto;
+      padding: 0 36px 32px;
+      display: flex; flex-direction: column; gap: 28px;
+    }
+    .messages::-webkit-scrollbar { width: 5px; }
+    .messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    /* ── Welcome ──────────────────────────────────────────────────────────── */
+    .welcome {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 10px; padding: 12px 32px 20px; text-align: center;
+    }
+    .w-ring {
+      width: 62px; height: 62px; border-radius: 18px;
+      background: var(--grad); position: relative;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: var(--sh-lg);
+    }
+    .w-ring::before {
+      content: "";
+      position: absolute; inset: -5px; border-radius: 24px;
+      background: var(--grad); opacity: 0.12; filter: blur(10px);
+    }
+    .w-ring svg { position: relative; z-index: 1; }
+    .welcome h2 { font-size: 26px; font-weight: 700; color: var(--head); letter-spacing: -0.4px; max-width: 620px; line-height: 1.3; margin: 0; }
+    .welcome p { font-size: 14px; color: var(--muted); max-width: 560px; line-height: 1.55; margin: 0; }
+    .welcome p strong { color: var(--blue); font-weight: 600; }
+
+    .chips-wrap {
+      background: var(--bg-mid); border: 1px solid var(--border-s);
+      border-radius: 14px; padding: 10px 12px;
+      max-width: 780px; width: 100%;
+    }
+    .chips { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .chip:last-child:nth-child(odd) { grid-column: 1 / -1; max-width: 60%; margin: 0 auto; width: 100%; }
+    .chip {
+      padding: 14px 16px;
+      background: var(--bg); border: 1.5px solid var(--border);
+      border-radius: 10px; font-size: 14px; font-weight: 600;
+      color: var(--head); cursor: pointer; box-shadow: var(--sh-sm);
+      font-family: inherit; transition: all 0.15s;
+      text-align: left; line-height: 1.4;
+    }
+    .chip:hover {
+      border-color: var(--blue); color: var(--blue);
+      background: var(--blue-pale); box-shadow: var(--sh-md);
+      transform: translateY(-1px);
+    }
+
+    /* ── Messages ─────────────────────────────────────────────────────────── */
+    .message { display: flex; gap: 14px; align-items: flex-start; animation: up 0.2s ease; }
+    @keyframes up { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+
+    .avatar {
+      width: 36px; height: 36px; border-radius: 10px;
+      flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+      font-size: 14px; font-weight: 700; box-shadow: var(--sh-sm);
+    }
+    .user .avatar { background: var(--grad); color: white; }
+    .assistant .avatar {
+      background: var(--claude-bg);
+      border: 1.5px solid rgba(217,119,87,0.22);
+      color: var(--claude);
+    }
+
+    .msg-body { flex: 1; min-width: 0; }
+    .msg-role {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.9px; margin-bottom: 7px;
+    }
+    .user .msg-role  { color: var(--blue); }
+    .assistant .msg-role { color: var(--claude); }
+
+    .user .bubble {
+      display: inline-block;
+      background: var(--blue-pale);
+      border: 1px solid rgba(2,126,234,0.16);
+      border-radius: 14px 14px 14px 4px;
+      padding: 13px 18px;
+      font-size: 16px; line-height: 1.65; color: var(--head);
+    }
+    .assistant .text {
+      font-size: 16px; line-height: 1.8;
+      color: var(--body); white-space: pre-wrap; word-break: break-word;
+    }
+
+    /* markdown-like bold */
+    .assistant .text b, .assistant .text strong { color: var(--head); font-weight: 600; }
+
+    .cursor {
+      display: inline-block; width: 2px; height: 17px;
+      background: var(--claude); margin-left: 2px;
+      vertical-align: middle; border-radius: 1px;
+      animation: blink 0.75s step-end infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+    /* ── Input bar ────────────────────────────────────────────────────────── */
+    .input-bar {
+      padding: 16px 28px 20px;
+      border-top: 1px solid var(--border-s);
+      background: rgba(255,255,255,0.97);
+    }
+    .input-wrap {
+      display: flex; gap: 10px; align-items: flex-end;
+      background: var(--bg); border: 1.5px solid var(--border);
+      border-radius: var(--r); padding: 11px 11px 11px 18px;
+      box-shadow: var(--sh-sm);
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .input-wrap:focus-within {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px rgba(2,126,234,0.10), var(--sh-sm);
+    }
+    #question {
+      flex: 1; border: none; outline: none; background: none;
+      font-size: 15px; font-family: inherit; font-weight: 400;
+      color: var(--head); resize: none;
+      min-height: 24px; max-height: 140px; line-height: 1.5;
+    }
+    #question::placeholder { color: var(--light); }
+    #send-btn {
+      width: 38px; height: 38px; border-radius: 10px; flex-shrink: 0;
+      background: var(--blue); border: none; cursor: pointer; color: white;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.15s;
+    }
+    #send-btn:hover:not(:disabled) {
+      background: var(--blue-dark);
+      box-shadow: 0 4px 14px rgba(2,126,234,0.35);
+      transform: translateY(-1px);
+    }
+    #send-btn:disabled { opacity: 0.3; cursor: not-allowed; transform: none; box-shadow: none; }
+    #send-btn svg { width: 16px; height: 16px; }
+    .input-hint { font-size: 12px; color: var(--light); margin-top: 9px; text-align: center; }
+    kbd {
+      background: var(--bg-mid); border: 1px solid var(--border);
+      padding: 1px 5px; border-radius: 3px; font-size: 10px; font-family: inherit;
+    }
+
+    /* ── Sources panel ────────────────────────────────────────────────────── */
+    .side {
+      width: 360px; flex-shrink: 0;
+      display: flex; flex-direction: column;
+      background: var(--bg-side);
+    }
+    .side-head {
+      padding: 15px 18px;
+      border-bottom: 1px solid var(--border-s);
+      background: var(--bg-mid);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .side-lbl { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); }
+    .cnt-badge {
+      background: var(--blue); color: white;
+      font-size: 10px; font-weight: 700;
+      padding: 2px 7px; border-radius: 10px; display: none;
+    }
+
+    .side-list {
+      flex: 1; overflow-y: auto;
+      padding: 14px; display: flex; flex-direction: column; gap: 12px;
+    }
+    .side-list::-webkit-scrollbar { width: 4px; }
+    .side-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    .side-empty {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 12px; padding: 40px 20px; text-align: center;
+    }
+    .side-empty-ico {
+      width: 50px; height: 50px; border-radius: 14px;
+      background: var(--bg); border: 1.5px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .side-empty p { font-size: 14px; color: var(--muted); line-height: 1.5; }
+
+    /* source card */
+    .sc {
+      background: var(--bg); border: 1.5px solid var(--border);
+      border-radius: 11px; overflow: hidden;
+      box-shadow: var(--sh-sm);
+      animation: up 0.2s ease;
+      cursor: pointer;
+      transition: box-shadow 0.15s, border-color 0.15s, transform 0.15s;
+    }
+    .sc:hover { border-color: rgba(2,126,234,0.35); box-shadow: var(--sh-md); transform: translateY(-1px); }
+
+    .sc-img { background: var(--bg-mid); border-bottom: 1px solid var(--border-s); overflow: hidden; position: relative; }
+    .sc-img img { width: 100%; display: block; transition: transform 0.2s; }
+    .sc:hover .sc-img img { transform: scale(1.02); }
+    .sc-badge {
+      position: absolute; top: 7px; right: 7px;
+      background: rgba(2,126,234,0.88); color: #fff;
+      font-size: 11px; font-weight: 700; line-height: 1;
+      padding: 3px 7px; border-radius: 20px;
+      backdrop-filter: blur(4px);
+      letter-spacing: 0.01em;
+    }
+
+    .sc-no-txt {
+      padding: 12px 13px; font-size: 13px; color: var(--muted); line-height: 1.55;
+      display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
+      background: var(--bg-mid); border-bottom: 1px solid var(--border-s);
+    }
+
+    .sc-footer { display: flex; align-items: center; gap: 8px; padding: 7px 13px 9px; }
+    .sc-page { font-size: 11px; font-weight: 600; color: var(--muted); flex-shrink: 0; }
+    .sim-track { flex: 1; height: 4px; background: var(--border); border-radius: 3px; overflow: hidden; }
+    .sim-fill { height: 100%; background: var(--grad-h); border-radius: 3px; width: 0; transition: width 0.7s cubic-bezier(0.4,0,0.2,1); }
+    .sim-val { font-size: 11.5px; font-weight: 700; color: var(--blue); flex-shrink: 0; }
+
+    /* ── Nav buttons (header) ────────────────────────────────────────────── */
+    .nav-btns { display: flex; flex-direction: column; gap: 4px; }
+    .nav-btn {
+      display: flex; align-items: center; gap: 6px;
+      padding: 5px 12px; border-radius: 7px;
+      font-size: 12px; font-weight: 600; cursor: pointer;
+      font-family: inherit; border: 1.5px solid; transition: all 0.15s;
+      white-space: nowrap; line-height: 1;
+    }
+    .nav-btn-chat {
+      background: var(--blue-pale); border-color: rgba(2,126,234,0.25); color: var(--blue);
+    }
+    .nav-btn-chat:hover { background: var(--blue-light); border-color: var(--blue); }
+    .nav-btn-docs {
+      background: rgba(98,209,52,0.10); border-color: rgba(98,209,52,0.40); color: #2e7d12;
+    }
+    .nav-btn-docs:hover { background: rgba(98,209,52,0.20); border-color: #62d134; }
+
+    /* ── Doc Viewer overlay ───────────────────────────────────────────────── */
+    #doc-viewer {
+      display: none; position: fixed; inset: 0; z-index: 500;
+      background: var(--bg); flex-direction: column;
+      font-family: 'Commissioner', -apple-system, Helvetica, Arial, sans-serif;
+    }
+    #doc-viewer.open { display: flex; }
+    .dv-toolbar {
+      display: flex; align-items: center; gap: 12px;
+      height: 52px; padding: 0 20px; flex-shrink: 0;
+      background: rgba(255,255,255,0.97);
+      border-bottom: 1px solid var(--border-s); box-shadow: var(--sh-sm);
+    }
+    .dv-toolbar-title {
+      flex: 1; text-align: center;
+      font-size: 15px; font-weight: 700; color: var(--head); pointer-events: none;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      padding: 0 8px;
+    }
+    .dv-back-btn {
+      display: none; align-items: center; gap: 6px;
+      padding: 7px 14px; border-radius: 8px;
+      background: var(--bg); border: 1.5px solid var(--border);
+      color: var(--muted); font-size: 13px; font-weight: 500;
+      cursor: pointer; font-family: inherit; transition: all 0.15s; flex-shrink: 0;
+    }
+    .dv-back-btn:hover { border-color: var(--blue); color: var(--blue); background: var(--blue-pale); }
+    .dv-back-btn.visible { display: flex; }
+    .dv-close-btn {
+      display: flex; align-items: center; gap: 7px; flex-shrink: 0;
+      padding: 7px 14px; border-radius: 8px;
+      background: var(--blue-pale); border: 1.5px solid rgba(2,126,234,0.25);
+      color: var(--blue); font-size: 13px; font-weight: 600;
+      cursor: pointer; font-family: inherit; transition: all 0.15s;
+    }
+    .dv-close-btn:hover { background: var(--blue-light); border-color: var(--blue); }
+    .dv-content { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+
+    /* folder grid */
+    .dv-intro { padding: 44px 32px 20px; text-align: center; }
+    .dv-intro h2 { font-size: 24px; font-weight: 700; color: var(--head); margin-bottom: 8px; }
+    .dv-intro p { font-size: 15px; color: var(--muted); }
+    .dv-folder-grid {
+      display: flex; gap: 24px; justify-content: center; align-items: flex-start;
+      padding: 20px 32px 40px; flex-wrap: wrap;
+    }
+    .dv-folder-card {
+      flex: 0 1 230px; padding: 32px 20px 28px; text-align: center;
+      background: var(--bg); border: 1.5px solid var(--border);
+      border-radius: 14px; cursor: pointer; box-shadow: var(--sh-sm);
+      transition: all 0.15s;
+    }
+    .dv-folder-card:hover { border-color: var(--blue); box-shadow: var(--sh-md); transform: translateY(-2px); }
+    .dv-folder-icon {
+      width: 56px; height: 56px; border-radius: 16px; margin: 0 auto 16px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .dv-folder-icon-ar  { background: linear-gradient(135deg,#027EEA,#6dc7e1); }
+    .dv-folder-icon-qr  { background: linear-gradient(135deg,#62D134,#027EEA); }
+    .dv-folder-icon-sec { background: linear-gradient(135deg,#d97757,#fbbf24); }
+    .dv-folder-icon-sl  { background: linear-gradient(135deg,#6366f1,#a855f7); }
+    .dv-folder-icon-br  { background: linear-gradient(135deg,#0ea5e9,#6366f1); }
+    .dv-folder-icon-ms  { background: linear-gradient(135deg,#f59e0b,#ef4444); }
+    .dv-folder-name { font-size: 16px; font-weight: 700; color: var(--head); margin-bottom: 6px; }
+    .dv-folder-count { font-size: 13px; color: var(--muted); }
+
+    /* file list view */
+    .dv-topbar {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 24px; border-bottom: 1px solid var(--border-s);
+      background: var(--bg-mid); flex-shrink: 0;
+    }
+    .dv-topbar-title { font-size: 15px; font-weight: 600; color: var(--head); }
+    .dv-file-list { flex: 1; overflow-y: auto; padding: 16px 24px; display: flex; flex-direction: column; gap: 8px; }
+    .dv-file-list::-webkit-scrollbar { width: 5px; }
+    .dv-file-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    .dv-file-row {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 16px; border-radius: 9px;
+      border: 1.5px solid var(--border); background: var(--bg);
+      cursor: pointer; transition: all 0.15s; box-shadow: var(--sh-sm);
+    }
+    .dv-file-row:hover { border-color: var(--blue); background: var(--blue-pale); box-shadow: var(--sh-md); }
+    .dv-file-ico {
+      width: 34px; height: 34px; border-radius: 8px; flex-shrink: 0;
+      background: rgba(217,119,87,0.12);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .dv-file-name { font-size: 14px; font-weight: 500; color: var(--head); }
+
+    /* pdf view */
+    .dv-pdf-view { display: flex; flex-direction: column; }
+    .dv-iframe { flex: 1; border: none; width: 100%; }
+
+    /* ── Lightbox ─────────────────────────────────────────────────────────── */
+    .lb { display: none; position: fixed; inset: 0; z-index: 9999; background: rgba(5,62,104,0.80); backdrop-filter: blur(6px); align-items: center; justify-content: center; cursor: zoom-out; }
+    .lb.open { display: flex; animation: fi 0.15s ease; }
+    @keyframes fi { from{opacity:0} to{opacity:1} }
+    .lb img { max-width: 88vw; max-height: 88vh; border-radius: 10px; box-shadow: 0 24px 80px rgba(0,0,0,0.35); }
+    .lb-close { position: fixed; top: 20px; right: 24px; width: 38px; height: 38px; border-radius: 50%; background: rgba(255,255,255,0.18); border: none; color: white; font-size: 22px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.15s; }
+    .lb-close:hover { background: rgba(255,255,255,0.3); }
+    .lb-nav { position: fixed; top: 50%; transform: translateY(-50%); width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,0.18); border: none; color: white; font-size: 22px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.15s; z-index: 10000; }
+    .lb-nav:hover { background: rgba(255,255,255,0.35); }
+    .lb-nav:disabled { opacity: 0.25; cursor: default; }
+    .lb-prev { left: 20px; }
+    .lb-next { right: 20px; }
+    .lb-counter { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); color: rgba(255,255,255,0.7); font-size: 13px; font-family: var(--font); pointer-events: none; }
+    .lb-info { position: fixed; bottom: 44px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 4px; pointer-events: none; }
+    .lb-doc-name { color: rgba(255,255,255,0.85); font-size: 13px; font-family: var(--font); font-weight: 600; max-width: 60vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; }
+    .lb-page { background: rgba(255,255,255,0.15); color: white; font-size: 11px; font-family: var(--font); font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; padding: 3px 10px; border-radius: 20px; white-space: nowrap; }
+  </style>
+</head>
+<body>
+
+
+<div class="bg"></div>
+<div class="bg-dots"></div>
+
+<div class="layout">
+  <!-- Header -->
+  <header>
+    <div class="grad-bar"></div>
+    <div class="header-left">
+      <!-- Official LandingAI logo, colored for light background -->
+      <svg class="logo-svg" viewBox="0 0 160 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <g clip-path="url(#lc)">
+          <path d="M36.5742 3.89943H32.7231V23.7996H35.5576H36.5742H45.6935V20.3787H36.5742V3.89943ZM57.6961 11.4158C57.3149 11.0248 56.8751 10.6925 56.3668 10.4384C55.5947 10.0376 54.7248 9.84211 53.7669 9.84211C52.506 9.84211 51.3722 10.1549 50.385 10.7805C49.3979 11.406 48.6159 12.2564 48.049 13.3315C47.4821 14.4067 47.1987 15.6285 47.1987 16.9871C47.1987 18.3261 47.4821 19.5381 48.049 20.6133C48.6159 21.6884 49.3979 22.5388 50.385 23.1643C51.3722 23.7899 52.4963 24.1026 53.7376 24.1026C54.715 24.1026 55.6044 23.9072 56.3864 23.5064C56.8946 23.2523 57.3345 22.9297 57.7059 22.5388V23.8192H61.4396V10.1256H57.7059V11.4158H57.6961ZM56.9631 19.6065C56.318 20.3005 55.4774 20.6524 54.4413 20.6524C53.7767 20.6524 53.1902 20.496 52.6624 20.1734C52.1346 19.8509 51.7241 19.4208 51.4309 18.8735C51.1377 18.3261 50.991 17.681 50.991 16.948C50.991 16.2345 51.1377 15.5991 51.4309 15.0518C51.7241 14.5044 52.1248 14.0744 52.6526 13.7518C53.1707 13.4293 53.7669 13.2729 54.4511 13.2729C55.1451 13.2729 55.7511 13.4293 56.2593 13.742C56.7676 14.0548 57.1781 14.4947 57.4811 15.0616C57.7841 15.6285 57.9307 16.2735 57.9307 16.9871C57.9209 18.0329 57.5984 18.9126 56.9631 19.6065ZM75.0355 10.5948C74.2535 10.0963 73.3543 9.84211 72.328 9.84211C71.292 9.84211 70.3634 10.067 69.5424 10.5263C69.0928 10.7707 68.7116 11.0737 68.3695 11.4158V10.1256H64.6651V23.7996H68.3695V15.9608C68.3695 15.433 68.4868 14.954 68.7214 14.5337C68.9559 14.1135 69.2785 13.7811 69.6988 13.5563C70.1093 13.3315 70.5882 13.2142 71.116 13.2142C71.9077 13.2142 72.5626 13.4684 73.0709 13.9766C73.5791 14.4849 73.8332 15.1495 73.8332 15.9608V23.7996H77.567V15.1104C77.567 14.2014 77.3422 13.3511 76.8828 12.5496C76.4332 11.7481 75.8174 11.0932 75.0355 10.5948ZM90.1952 11.2985C89.8433 10.9662 89.4328 10.6827 88.9734 10.4481C88.1817 10.0474 87.2923 9.84211 86.3148 9.84211C85.054 9.84211 83.9202 10.1549 82.933 10.7805C81.9458 11.406 81.1541 12.2564 80.5676 13.3315C79.9812 14.4067 79.688 15.6285 79.688 16.9871C79.688 18.3261 79.9812 19.5381 80.5676 20.6133C81.1541 21.6884 81.936 22.5388 82.933 23.1643C83.9202 23.7899 85.054 24.1026 86.3148 24.1026C87.3118 24.1026 88.211 23.8974 89.0027 23.4967C89.4621 23.2621 89.8727 22.9688 90.2245 22.6267V23.8192H93.9582V3.33252H90.1952V11.2985ZM90.0095 18.8735C89.7163 19.4208 89.3057 19.8509 88.7779 20.1734C88.2501 20.496 87.6441 20.6524 86.9697 20.6524C86.3051 20.6524 85.7187 20.496 85.1908 20.1832C84.663 19.8704 84.2525 19.4404 83.9593 18.8832C83.666 18.3261 83.5194 17.681 83.5194 16.948C83.5194 16.2345 83.666 15.5894 83.9593 15.0322C84.2525 14.4751 84.6532 14.045 85.181 13.7323C85.6991 13.4195 86.3051 13.2631 87.0088 13.2631C87.693 13.2631 88.2892 13.4195 88.8073 13.742C89.3253 14.0646 89.7358 14.4947 90.029 15.042C90.3223 15.5894 90.4689 16.2345 90.4689 16.9675C90.4493 17.6908 90.3027 18.3261 90.0095 18.8735ZM99.0506 3.67462C98.4446 3.67462 97.9461 3.87988 97.5551 4.30017C97.1544 4.71068 96.9589 5.21894 96.9589 5.79561C96.9589 6.40161 97.1544 6.90009 97.5551 7.31061C97.9559 7.72112 98.4544 7.9166 99.0506 7.9166C99.6761 7.9166 100.175 7.71135 100.566 7.31061C100.957 6.90987 101.142 6.40161 101.142 5.79561C101.142 5.20916 100.947 4.71068 100.566 4.30017C100.184 3.87988 99.6761 3.67462 99.0506 3.67462ZM97.1544 23.7996H100.917V10.1256H97.1544V23.7996ZM114.582 10.5948C113.8 10.0963 112.901 9.84211 111.874 9.84211C110.838 9.84211 109.91 10.067 109.089 10.5263C108.639 10.7707 108.258 11.0737 107.916 11.4158V10.1256H104.211V23.7996H107.916V15.9608C107.916 15.433 108.033 14.954 108.268 14.5337C108.502 14.1135 108.825 13.7811 109.245 13.5563C109.656 13.3315 110.134 13.2142 110.662 13.2142C111.454 13.2142 112.109 13.4684 112.617 13.9766C113.125 14.4849 113.379 15.1495 113.379 15.9608V23.7996H117.113V15.1104C117.113 14.2014 116.888 13.3511 116.429 12.5496C115.979 11.7481 115.364 11.0932 114.582 10.5948ZM129.575 10.1256V11.2692C129.233 10.9369 128.823 10.6534 128.353 10.4188C127.562 10.0279 126.663 9.84211 125.666 9.84211C124.434 9.84211 123.339 10.1354 122.352 10.7316C121.375 11.3278 120.603 12.1293 120.045 13.1556C119.488 14.1721 119.215 15.3255 119.215 16.6059C119.215 17.8863 119.488 19.0494 120.045 20.0855C120.603 21.1215 121.375 21.9426 122.352 22.5388C123.33 23.135 124.434 23.4282 125.666 23.4282C126.663 23.4282 127.562 23.2327 128.344 22.832C128.803 22.5974 129.204 22.314 129.546 21.9817V23.1643C129.546 24.1613 129.204 24.9628 128.529 25.559C127.845 26.1552 126.946 26.4484 125.812 26.4484C124.884 26.4484 124.102 26.2823 123.447 25.95C122.792 25.6176 122.206 25.1387 121.678 24.5229L119.303 26.8687C119.987 27.8168 120.876 28.5401 121.981 29.0581C123.085 29.5762 124.375 29.8401 125.842 29.8401C127.298 29.8401 128.578 29.5566 129.693 29.0093C130.807 28.4521 131.677 27.6604 132.312 26.6439C132.947 25.6274 133.26 24.4447 133.26 23.1057V10.1256H129.575ZM129.331 18.4043C129.057 18.9223 128.666 19.3231 128.168 19.6065C127.669 19.89 127.063 20.0268 126.369 20.0268C125.724 20.0268 125.148 19.8802 124.63 19.587C124.112 19.2938 123.711 18.893 123.427 18.3652C123.144 17.8472 123.007 17.2607 123.007 16.5961C123.007 15.951 123.154 15.3743 123.447 14.8563C123.74 14.3383 124.131 13.9278 124.639 13.6345C125.138 13.3413 125.734 13.1947 126.408 13.1947C127.073 13.1947 127.65 13.3413 128.168 13.6345C128.676 13.9278 129.067 14.3285 129.341 14.8563C129.614 15.3743 129.751 15.9608 129.751 16.6254C129.741 17.2998 129.605 17.8863 129.331 18.4043Z" fill="#053e68"/>
+          <path d="M143.611 3.8999L135.567 23.8H139.643L141.06 20.0956H149.222L150.629 23.8H154.734L146.778 3.8999H143.611ZM142.302 16.8604L145.165 9.35388L148.01 16.8604H142.302ZM155.194 3.8999V23.8H159.045V3.8999H155.194Z" fill="#027eea"/>
+          <path d="M0 19.187V25.7943L5.31714 28.6386V22.0312L0 19.187Z" fill="#027eea"/>
+          <path d="M0 11.4258V18.0332L5.31714 20.8774V14.2701L0 11.4258Z" fill="#027eea"/>
+          <path d="M0 3.66504V10.2822L5.31714 13.1167V6.50932L0 3.66504Z" fill="#027eea"/>
+          <path d="M18.9712 22.0312V28.6386L24.2786 25.7943V19.187L18.9712 22.0312Z" fill="#62d134"/>
+          <path d="M6.33398 14.2701V20.8774L11.6413 18.0332V11.4258L6.33398 14.2701Z" fill="#027eea"/>
+          <path d="M6.33398 6.50932V13.1167L11.6413 10.2822V3.66504L6.33398 6.50932Z" fill="#6dc7e1"/>
+          <path d="M11.1035 2.82473L5.82541 0L0.547363 2.82473L5.82541 5.65924L11.1035 2.82473Z" fill="#053e68"/>
+          <path d="M6.33398 22.5493V29.1664L11.6413 32.0009V25.3936L6.33398 22.5493Z" fill="#6dc7e1"/>
+          <path d="M12.6572 25.3936V32.0009L17.9646 29.1664V22.5493L12.6572 25.3936Z" fill="#027eea"/>
+          <path d="M6.87109 21.7179L12.1394 24.5524L17.4174 21.7179L12.1394 18.8833L6.87109 21.7179Z" fill="#053e68"/>
+          <path d="M23.7509 18.3462L18.4729 15.5117L13.2046 18.3462L18.4729 21.1709L23.7509 18.3462Z" fill="#62d134"/>
+        </g>
+        <defs><clipPath id="lc"><rect width="160" height="32" fill="white"/></clipPath></defs>
+      </svg>
+
+      <div class="h-div"></div>
+      <img src="/claude-logo-cropped.png" alt="Claude" style="height:24px;width:auto;display:block;">
+    </div>
+
+    <div class="header-right">
+      <div class="nav-btns">
+        <button class="nav-btn nav-btn-chat" onclick="goHome()">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+            <path d="M8 2C4.686 2 2 4.686 2 8s2.686 6 6 6 6-2.686 6-6-2.686-6-6-6z" stroke="#027eea" stroke-width="1.5"/>
+            <path d="M8 6v2l1.5 1.5" stroke="#027eea" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+          Claude Explorer
+        </button>
+        <button class="nav-btn nav-btn-docs" onclick="openDocViewer()">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+            <path d="M2 3h12M2 7h9M2 11h6" stroke="#2e7d12" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+          Original Doc Viewer
+        </button>
+      </div>
+      <div class="status-tag">
+        <span class="s-dot"></span>ADE RAG Active
+      </div>
+    </div>
+  </header>
+
+  <!-- Main -->
+  <div class="main">
+
+    <!-- Chat -->
+    <div class="chat-panel">
+      <!-- toolbar: shown after first message -->
+      <div class="chat-toolbar" id="toolbar">
+        <button class="back-btn" onclick="goHome()">
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10 3L5 8l5 5"/>
+          </svg>
+          New question
+        </button>
+        <span class="toolbar-title" id="toolbar-title"></span>
+      </div>
+
+      <div class="messages" id="messages">
+        <div class="welcome" id="welcome">
+          <div class="w-ring">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none">
+              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="white" stroke-width="1.8" stroke-linejoin="round"/>
+              <polyline points="14 2 14 8 20 8" stroke="white" stroke-width="1.8" stroke-linejoin="round"/>
+              <line x1="8" y1="13" x2="16" y2="13" stroke="white" stroke-width="1.8" stroke-linecap="round"/>
+              <line x1="8" y1="17" x2="13" y2="17" stroke="white" stroke-width="1.8" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <h2>GE Connect Technical Assistant —<br>every answer traced back to the source page</h2>
+          <p>Built on <strong>LandingAI ADE</strong> and <span style="color:var(--claude);font-weight:600;">Claude Opus</span>.<br>1,478 chunks with 384-dim embeddings vector store for source provenance.<br>Ask about GE Connect maintenance, refrigerants, and installation.</p>
+          <div class="chips-wrap">
+          <div class="chips">
+            <button class="chip" onclick="sendChip(this)">What are all the connection points on the outdoor unit used during the evacuation and charging process?</button>
+            <button class="chip" onclick="sendChip(this)">How do I properly connect the manifold gauge set to the outdoor unit for evacuation and refrigerant charging?</button>
+            <button class="chip" onclick="sendChip(this)">What wiring configuration is required between the GE Connect indoor and outdoor units, including terminal designations?</button>
+            <button class="chip" onclick="sendChip(this)">What are the electrical supply requirements (voltage, amperage, and circuit breaker size) for the GE Connect outdoor unit?</button>
+            <button class="chip" onclick="sendChip(this)">What happens if the low pressure switch opens a second time?</button>
+          </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="input-bar">
+        <div class="input-wrap">
+          <textarea id="question" rows="1"
+            placeholder="Ask a question about GE Appliances HVAC products..."
+            onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+          <button id="send-btn" onclick="sendQuestion()" title="Send">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="2" y1="8" x2="14" y2="8"/><polyline points="9 3 14 8 9 13"/>
+            </svg>
+          </button>
+        </div>
+        <div class="input-hint"><kbd>Enter</kbd> to send &nbsp;&middot;&nbsp; <kbd>Shift+Enter</kbd> for new line</div>
+      </div>
+    </div>
+
+    <!-- Sources sidebar -->
+    <div class="side">
+      <div class="side-head">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+          <rect x="1.5" y="1.5" width="13" height="13" rx="2" stroke="#6b7a8d" stroke-width="1.4"/>
+          <path d="M4 5.5h8M4 8.5h8M4 11.5h5" stroke="#6b7a8d" stroke-width="1.4" stroke-linecap="round"/>
+        </svg>
+        <span class="side-lbl">Source Chunks</span>
+        <span class="cnt-badge" id="cnt-badge"></span>
+      </div>
+      <div class="side-list" id="side-list">
+        <div class="side-empty" id="side-empty">
+          <div class="side-empty-ico">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#a8b4c0" stroke-width="1.4">
+              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+            </svg>
+          </div>
+          <p>Retrieved document chunks<br>will appear here</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Doc Viewer -->
+<div id="doc-viewer">
+  <!-- Toolbar -->
+  <div class="dv-toolbar">
+    <button class="dv-back-btn" id="dv-back-btn" onclick="backToFiles()">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3L5 8l5 5"/></svg>
+      Back
+    </button>
+    <span class="dv-toolbar-title" id="dv-toolbar-title"></span>
+    <button class="dv-close-btn" onclick="closeDocViewer()">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3L5 8l5 5"/></svg>
+      Claude Explorer
+    </button>
+  </div>
+
+  <!-- Files view (shown directly — no folder step) -->
+  <div id="dv-files" class="dv-content" style="display:none;">
+    <div class="dv-intro">
+      <h2>Connect Series</h2>
+      <p>Installation &amp; Service Manuals</p>
+    </div>
+    <div class="dv-file-list" id="dv-file-list"></div>
+  </div>
+
+  <!-- PDF view -->
+  <div id="dv-pdf" class="dv-content dv-pdf-view" style="display:none;">
+    <iframe id="dv-iframe" class="dv-iframe" src=""></iframe>
+  </div>
+</div>
+
+<!-- Lightbox -->
+<div class="lb" id="lb" onclick="closeLb()">
+  <button class="lb-close" onclick="closeLb()">&times;</button>
+  <button class="lb-nav lb-prev" id="lb-prev" onclick="event.stopPropagation();lbNav(-1)">&#8592;</button>
+  <img id="lb-img" src="" alt="" onclick="event.stopPropagation()"/>
+  <button class="lb-nav lb-next" id="lb-next" onclick="event.stopPropagation();lbNav(1)">&#8594;</button>
+  <div class="lb-info" onclick="event.stopPropagation()">
+    <span class="lb-doc-name" id="lb-doc-name"></span>
+    <span class="lb-page" id="lb-page"></span>
+  </div>
+  <span class="lb-counter" id="lb-counter"></span>
+</div>
+
+<script>
+  let busy = false;
+
+  function autoResize(el) {
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, 140) + "px";
+  }
+  function handleKey(e) {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendQuestion(); }
+  }
+  function sendChip(el) {
+    document.getElementById("question").value = el.textContent.trim();
+    sendQuestion();
+  }
+
+  function goHome() {
+    const msgs = document.getElementById("messages");
+    msgs.innerHTML = `<div class="welcome" id="welcome">
+      <div class="w-ring">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none">
+          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="white" stroke-width="1.8" stroke-linejoin="round"/>
+          <polyline points="14 2 14 8 20 8" stroke="white" stroke-width="1.8" stroke-linejoin="round"/>
+          <line x1="8" y1="13" x2="16" y2="13" stroke="white" stroke-width="1.8" stroke-linecap="round"/>
+          <line x1="8" y1="17" x2="13" y2="17" stroke="white" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <h2>GE Connect Technical Assistant —<br>every answer traced back to the source page</h2>
+      <p>Built on <strong>LandingAI ADE</strong> and <span style="color:var(--claude);font-weight:600;">Claude Opus</span>.<br>1,478 chunks with 384-dim embeddings vector store for source provenance.<br>Ask about GE Connect maintenance, refrigerants, and installation.</p>
+      <div class="chips-wrap">
+      <div class="chips">
+        <button class="chip" onclick="sendChip(this)">What are all the connection points on the outdoor unit used during the evacuation and charging process?</button>
+        <button class="chip" onclick="sendChip(this)">How do I properly connect the manifold gauge set to the outdoor unit for evacuation and refrigerant charging?</button>
+        <button class="chip" onclick="sendChip(this)">What wiring configuration is required between the GE Connect indoor and outdoor units, including terminal designations?</button>
+        <button class="chip" onclick="sendChip(this)">What are the electrical supply requirements (voltage, amperage, and circuit breaker size) for the GE Connect outdoor unit?</button>
+        <button class="chip" onclick="sendChip(this)">What happens if the low pressure switch opens a second time?</button>
+      </div>
+      </div>
+    </div>`;
+    clearSources(false);
+    document.getElementById("toolbar").classList.remove("visible");
+    document.getElementById("question").value = "";
+    document.getElementById("question").style.height = "auto";
+    document.getElementById("question").focus();
+  }
+
+  function sendQuestion() {
+    if (busy) return;
+    const q = document.getElementById("question").value.trim();
+    if (!q) return;
+
+    document.getElementById("welcome")?.remove();
+    const toolbar = document.getElementById("toolbar");
+    toolbar.classList.add("visible");
+    document.getElementById("toolbar-title").textContent = q.length > 60 ? q.slice(0, 60) + "…" : q;
+
+    clearSources(true);
+    appendMsg("user", q);
+    document.getElementById("question").value = "";
+    document.getElementById("question").style.height = "auto";
+
+    const div = appendMsg("assistant", "");
+    const textEl = div.querySelector(".text");
+    textEl.innerHTML = '<span class="cursor"></span>';
+
+    busy = true;
+    document.getElementById("send-btn").disabled = true;
+
+    let full = "";
+    const es = new EventSource("/ask?q=" + encodeURIComponent(q));
+
+    es.onmessage = (e) => {
+      const d = JSON.parse(e.data);
+      if (d.type === "sources") {
+        renderSources(d.sources);
+      } else if (d.type === "token") {
+        full += d.text;
+        textEl.innerHTML = renderMd(full) + '<span class="cursor"></span>';
+        scrollDown();
+      } else if (d.type === "done") {
+        textEl.innerHTML = renderMd(full);
+        es.close(); finish();
+      } else if (d.error) {
+        textEl.textContent = "Error: " + d.error;
+        es.close(); finish();
+      }
+    };
+    es.onerror = () => {
+      if (!full) textEl.textContent = "Connection error — please try again.";
+      else textEl.innerHTML = renderMd(full);
+      es.close(); finish();
+    };
+  }
+
+  function finish() {
+    busy = false;
+    document.getElementById("send-btn").disabled = false;
+    document.getElementById("question").focus();
+  }
+
+  function appendMsg(role, text) {
+    const msgs = document.getElementById("messages");
+    const div = document.createElement("div");
+    div.className = "message " + role;
+    const inner = role === "user"
+      ? `<div class="bubble">${esc(text)}</div>`
+      : `<div class="text">${esc(text)}</div>`;
+    div.innerHTML = `
+      <div class="avatar">${role === "user" ? "U" : "C"}</div>
+      <div class="msg-body">
+        <div class="msg-role">${role === "user" ? "You" : "Claude"}</div>
+        ${inner}
+      </div>`;
+    msgs.appendChild(div);
+    scrollDown();
+    return div;
+  }
+
+  function renderMd(s) {
+    return esc(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  }
+
+  function clearSources(loading) {
+    const list = document.getElementById("side-list");
+    list.innerHTML = `<div class="side-empty">
+      <div class="side-empty-ico">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#a8b4c0" stroke-width="1.4">
+          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+        </svg>
+      </div>
+      <p>${loading ? "Retrieving chunks\u2026" : "Retrieved document chunks<br>will appear here"}</p>
+    </div>`;
+    document.getElementById("cnt-badge").style.display = "none";
+  }
+
+  function renderSources(sources) {
+    const list = document.getElementById("side-list");
+    list.innerHTML = "";
+
+    if (!sources.length) {
+      list.innerHTML = `<div class="side-empty"><div class="side-empty-ico">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#a8b4c0" stroke-width="1.4">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+        </svg></div><p>No chunks retrieved</p></div>`;
+      return;
+    }
+
+    const b = document.getElementById("cnt-badge");
+    b.textContent = sources.length;
+    b.style.display = "inline";
+
+    lbImgs = sources.filter(s => s.image_url).map(s => ({ url: s.image_url, page: s.page, doc: s.doc }));
+
+    sources.forEach(s => {
+      const pct = Math.round(s.similarity * 100);
+      const card = document.createElement("div");
+      card.className = "sc";
+
+      const previewHtml = s.image_url
+        ? `<div class="sc-img"><img src="${s.image_url}" alt="chunk" loading="lazy"/><span class="sc-badge">${pct}%</span></div>`
+        : `<div class="sc-no-txt">${esc(s.text)}</div>`;
+
+      card.innerHTML = `${previewHtml}
+        <div class="sc-footer">
+          <span class="sc-page">p.${s.page}</span>
+          <div class="sim-track"><div class="sim-fill" data-pct="${pct}"></div></div>
+          <span class="sim-val">${pct}% match</span>
+        </div>`;
+
+      list.appendChild(card);
+      if (s.image_url) {
+        const imgUrl = s.image_url;
+        card.addEventListener("click", () => openLb(imgUrl, lbImgs));
+      }
+      requestAnimationFrame(() => setTimeout(() => {
+        card.querySelector(".sim-fill").style.width = pct + "%";
+      }, 60));
+    });
+  }
+
+  let lbImgs = [], lbList = [], lbIdx = 0;
+  function openLb(src, list) {
+    lbList = list && list.length ? list : [{ url: src, page: null, doc: "" }];
+    lbIdx = lbList.findIndex(item => item.url === src);
+    if (lbIdx < 0) lbIdx = 0;
+    lbShow();
+    document.getElementById("lb").classList.add("open");
+  }
+  function lbShow() {
+    const item = lbList[lbIdx];
+    document.getElementById("lb-img").src = item.url;
+    document.getElementById("lb-prev").disabled = lbIdx === 0;
+    document.getElementById("lb-next").disabled = lbIdx === lbList.length - 1;
+    document.getElementById("lb-counter").textContent = lbList.length > 1 ? `${lbIdx + 1} / ${lbList.length}` : "";
+    document.getElementById("lb-page").textContent = item.page != null ? `Page ${item.page}` : "";
+    document.getElementById("lb-doc-name").textContent = item.doc || "";
+  }
+  function lbNav(dir) {
+    lbIdx = Math.max(0, Math.min(lbList.length - 1, lbIdx + dir));
+    lbShow();
+  }
+  function closeLb() { document.getElementById("lb").classList.remove("open"); }
+  document.addEventListener("keydown", e => {
+    if (!document.getElementById("lb").classList.contains("open")) return;
+    if (e.key === "Escape") closeLb();
+    if (e.key === "ArrowLeft") lbNav(-1);
+    if (e.key === "ArrowRight") lbNav(1);
+  });
+
+  function scrollDown() {
+    const m = document.getElementById("messages");
+    m.scrollTop = m.scrollHeight;
+  }
+  function esc(s) {
+    return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  }
+
+  // ── Doc Viewer ─────────────────────────────────────────────────────────
+  let dvCurrentFolder = null;
+  const folderLabels = {
+    connect_series:  'Connect Series',
+    endure_multi:    'Endure Multi',
+    altitude_series: 'Altitude Series',
+    tempo_series:    'Tempo Series',
+    brochures:       'Brochures',
+    model_specific:  'Model Specific'
+  };
+
+  function focusChat() {
+    closeDocViewer();
+    setTimeout(() => document.getElementById('question').focus(), 50);
+  }
+
+  function openDocViewer() {
+    document.getElementById('doc-viewer').classList.add('open');
+    document.getElementById('dv-pdf').style.display = 'none';
+    document.getElementById('dv-toolbar-title').textContent = '';
+    document.getElementById('dv-iframe').src = '';
+    document.getElementById('dv-back-btn').classList.remove('visible');
+    _loadConnectFiles();
+  }
+
+  function _loadConnectFiles() {
+    dvCurrentFolder = 'connect_series';
+    const filesDiv = document.getElementById('dv-files');
+    filesDiv.style.display = 'flex';
+    const list = document.getElementById('dv-file-list');
+    if (list.children.length > 0) return; // already loaded
+    list.innerHTML = '<div style="color:var(--muted);font-size:14px;padding:20px;">Loading...</div>';
+    fetch('/api/docs/connect_series')
+      .then(r => r.json())
+      .then(files => {
+        list.innerHTML = '';
+        files.forEach(name => {
+          const row = document.createElement('div');
+          row.className = 'dv-file-row';
+          row.innerHTML = `
+            <div class="dv-file-ico">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#d97757" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+              </svg>
+            </div>
+            <span class="dv-file-name">${esc(name)}</span>`;
+          row.onclick = () => openPDF('connect_series', name);
+          list.appendChild(row);
+        });
+      })
+      .catch(() => {
+        list.innerHTML = '<div style="color:var(--muted);font-size:14px;padding:20px;">Failed to load files.</div>';
+      });
+  }
+
+  function closeDocViewer() {
+    document.getElementById('doc-viewer').classList.remove('open');
+    document.getElementById('dv-iframe').src = '';
+  }
+
+  function openPDF(folder, filename) {
+    document.getElementById('dv-files').style.display = 'none';
+    document.getElementById('dv-pdf').style.display = 'flex';
+    document.getElementById('dv-toolbar-title').textContent = filename;
+    document.getElementById('dv-back-btn').classList.add('visible');
+    document.getElementById('dv-iframe').src = '/pdf/' + folder + '/' + encodeURIComponent(filename);
+  }
+
+  function backToFiles() {
+    document.getElementById('dv-pdf').style.display = 'none';
+    document.getElementById('dv-iframe').src = '';
+    document.getElementById('dv-files').style.display = 'flex';
+    document.getElementById('dv-toolbar-title').textContent = '';
+    document.getElementById('dv-back-btn').classList.remove('visible');
+  }
+
+  window.addEventListener("load", () => document.getElementById("question").focus());
+</script>
+</body>
+</html>

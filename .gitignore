@@ -1,0 +1,16 @@
+.env
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+
+# Large generated assets — regenerate with --parse --all then --rebuild
+chunk_images/
+vector_store/embeddings.npy
+vector_store/documents.json
+
+# Downloaded PDFs — regenerate with download_ge_hvac_manuals.py
+ge_hvac_manuals/
+
+# Parse results — regenerate with --parse --all
+parse_results/
