@@ -931,6 +931,16 @@ def make_flask_app(embedder, vectors, store, image_map):
             return send_file(full_path)
         return ("Not found", 404)
 
+    @flask_app.route("/readme")
+    def readme():
+        content = (BASE_DIR / "README.md").read_text(encoding="utf-8")
+        # Strip HuggingFace frontmatter block (--- ... ---)
+        if content.startswith("---"):
+            end = content.find("---", 3)
+            if end != -1:
+                content = content[end + 3:].lstrip("\n")
+        return content, 200, {"Content-Type": "text/plain; charset=utf-8"}
+
     @flask_app.route("/health")
     def health():
         return {"status": "ok"}, 200
