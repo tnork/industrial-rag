@@ -376,7 +376,7 @@
     }
 
     .side-list {
-      flex: 1; overflow-y: auto;
+      flex: 1; min-height: 0; overflow-y: auto;
       padding: 14px; display: flex; flex-direction: column; gap: 12px;
     }
     .side-list::-webkit-scrollbar { width: 4px; }
@@ -667,6 +667,8 @@
 
     <div class="header-right">
       <div class="nav-btns">
+        <!-- SYNC: Claude Explorer button icon — if you change this SVG, update the
+             matching dv-close-btn in the Doc Viewer toolbar below (search "dv-close-btn"). -->
         <button class="nav-btn nav-btn-chat" onclick="goHome()">
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
             <path d="M3 2h7l3 3v9a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="#027eea" stroke-width="1.5" stroke-linejoin="round"/>
@@ -728,7 +730,7 @@
             <button class="chip" onclick="sendChip(this)">What are all the connection points on the outdoor unit used during the evacuation and charging process?</button>
             <button class="chip" onclick="sendChip(this)">How do I properly connect the manifold gauge set to the outdoor unit for evacuation and refrigerant charging?</button>
             <button class="chip" onclick="sendChip(this)">What wiring configuration is required between the GE Connect indoor and outdoor units, including terminal designations?</button>
-            <button class="chip" onclick="sendChip(this)">What happens if the low pressure switch opens a second time?</button>
+            <button class="chip" onclick="sendChip(this)">After replacing a compressor on a outdoor unit, what are the steps and checks needed to bring the system back to fully operational?</button>
           </div>
           </div>
         </div>
@@ -784,8 +786,14 @@
       Back
     </button>
     <span class="dv-toolbar-title" id="dv-toolbar-title"></span>
+    <!-- SYNC: Claude Explorer button icon — if you change this SVG, update the
+         matching nav-btn-chat in the header nav (search "nav-btn-chat"). -->
     <button class="dv-close-btn" onclick="closeDocViewer()">
-      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3L5 8l5 5"/></svg>
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+        <path d="M3 2h7l3 3v9a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="#027eea" stroke-width="1.5" stroke-linejoin="round"/>
+        <path d="M10 2v3h3" stroke="#027eea" stroke-width="1.5" stroke-linejoin="round"/>
+        <path d="M5 8h6M5 11h4" stroke="#027eea" stroke-width="1.3" stroke-linecap="round"/>
+      </svg>
       Claude Explorer
     </button>
   </div>
@@ -862,7 +870,7 @@
         <button class="chip" onclick="sendChip(this)">What are all the connection points on the outdoor unit used during the evacuation and charging process?</button>
         <button class="chip" onclick="sendChip(this)">How do I properly connect the manifold gauge set to the outdoor unit for evacuation and refrigerant charging?</button>
         <button class="chip" onclick="sendChip(this)">What wiring configuration is required between the GE Connect indoor and outdoor units, including terminal designations?</button>
-        <button class="chip" onclick="sendChip(this)">What happens if the low pressure switch opens a second time?</button>
+        <button class="chip" onclick="sendChip(this)">After replacing a compressor on a outdoor unit, what are the steps and checks needed to bring the system back to fully operational?</button>
       </div>
       </div>
     </div>`;
