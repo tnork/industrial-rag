@@ -17,11 +17,17 @@ RUN pip install --no-cache-dir -r requirements.txt
 ENV SENTENCE_TRANSFORMERS_HOME=/app/.cache/sentence_transformers
 ENV HF_HOME=/app/.cache/huggingface
 
-# Pre-cache the sentence-transformer model into this image layer.
-# HF_HUB_OFFLINE is temporarily unset during this build step so the
-# download succeeds; at runtime it is set to 1 to prevent DNS lookups.
-RUN HF_HUB_OFFLINE=0 python -c \
-    "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
+# Pre-cache both embedding models into this image layer.
+# Dual-encoder retrieval requires:
+#   - all-MiniLM-L6-v2  (384-dim, text encoder for text-only chunks + query)
+#   - clip-ViT-B-32      (512-dim, image + text encoder for image chunks)
+# HF_HUB_OFFLINE is temporarily unset during build so downloads succeed;
+# at runtime it is set to 1 to prevent any DNS lookups.
+RUN HF_HUB_OFFLINE=0 python -c "\
+from sentence_transformers import SentenceTransformer; \
+SentenceTransformer('all-MiniLM-L6-v2'); \
+SentenceTransformer('clip-ViT-B-32'); \
+print('Both models cached.')"
 
 # Prevent huggingface_hub from making any network calls at runtime
 # (model is already cached in the image layer above)

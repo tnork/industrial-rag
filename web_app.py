@@ -1,7 +1,7 @@
 """
-GE HVAC Manuals RAG — Unified Application
-==========================================
-Combines PDF downloading, ADE parsing, RAG vector store, and Flask web UI.
+GE Connect Technical Assistant — Unified Application
+=====================================================
+Combines PDF downloading, ADE parsing, dual-encoder vector store, and Flask web UI.
 
 Modes:
     python web_app.py                      # launch web UI (default)
@@ -19,14 +19,41 @@ Parse output:
     parse_results/{category}/{stem}.txt
     chunk_images/{category}/{stem}/NNN_type_uuid.png
 
-RAG vector store:
-    vector_store/embeddings.npy
-    vector_store/documents.json
-    vector_store/indexed_files.json   ← tracks which parse results are indexed
+RAG vector store (NumPy flat files, dual-encoder):
+    vector_store/embeddings.npy        ← CLIP 512-dim vectors for image chunks
+    vector_store/text_embeddings.npy   ← MiniLM 384-dim vectors for text-only chunks
+    vector_store/img_indices.json      ← maps CLIP matrix rows → store indices
+    vector_store/txt_indices.json      ← maps MiniLM matrix rows → store indices
+    vector_store/documents.json        ← chunk metadata (text, bbox, page, category, etc.)
+    vector_store/indexed_files.json    ← tracks which parse results are indexed
+
+Embedding strategy (dual-encoder):
+    - Image chunks (have a matching PNG crop):
+        → embedded with CLIP image encoder (clip-ViT-B-32, 512-dim)
+        → captures visual content of wiring diagrams, figures, spec tables
+    - Text-only chunks (no image):
+        → embedded with MiniLM text encoder (all-MiniLM-L6-v2, 384-dim)
+        → optimized for dense semantic passage retrieval
+
+Retrieval — Reciprocal Rank Fusion (RRF, k=60):
+    At query time the question is encoded by BOTH encoders. Each returns a ranked
+    list; RRF merges them by rank position (1/(k+rank+1)) rather than raw cosine
+    score. This is necessary because MiniLM text-to-text scores (0.4–0.8) are
+    systematically higher than CLIP text-to-image scores (0.1–0.35) — raw-score
+    merging would cause text-only chunks to dominate every result set. RRF gives
+    each encoder equal weight. The original cosine score is preserved for UI display.
+
+Claude vision (adaptive):
+    - 0 or 1 image sent per request (never more)
+    - An image is sent only if the top-ranked result is an image chunk AND its
+      cosine similarity meets CLAUDE_IMG_MIN_SIM (0.20)
+    - Visual questions (diagram ranked #1) get 1 image; text/lookup questions
+      (text passage ranked #1) get 0 images
+    - claude-opus-4-6 reads diagrams visually; answers streamed via SSE
 
 Environment:
-    VISION_AGENT_API_KEY  — for ADE parsing (.env)
-    ANTHROPIC_API_KEY     — for Claude RAG (.env)
+    VISION_AGENT_API_KEY  — for ADE parsing only (.env)
+    ANTHROPIC_API_KEY     — for Claude RAG + web UI (.env)
 """
 
 import base64
@@ -51,15 +78,20 @@ INPUT_DIR     = BASE_DIR / "ge_hvac_manuals"
 PARSE_RESULTS = BASE_DIR / "parse_results"
 CHUNK_IMAGES  = BASE_DIR / "chunk_images"
 VECTOR_DIR    = BASE_DIR / "vector_store"
-VECTORS_FILE  = VECTOR_DIR / "embeddings.npy"
-DOCS_FILE     = VECTOR_DIR / "documents.json"
-INDEXED_FILE  = VECTOR_DIR / "indexed_files.json"
+VECTORS_FILE      = VECTOR_DIR / "embeddings.npy"       # CLIP image embeddings (M × 512)
+TEXT_VECTORS_FILE = VECTOR_DIR / "text_embeddings.npy"  # MiniLM text embeddings (N × 384)
+IMG_INDICES_FILE  = VECTOR_DIR / "img_indices.json"     # store index for each row in VECTORS_FILE
+TXT_INDICES_FILE  = VECTOR_DIR / "txt_indices.json"     # store index for each row in TEXT_VECTORS_FILE
+DOCS_FILE         = VECTOR_DIR / "documents.json"
+INDEXED_FILE      = VECTOR_DIR / "indexed_files.json"
 
-EMBEDDING_MODEL  = "clip-ViT-B-32"   # vision-language model; encodes images + text in same 512-dim space
-CLAUDE_MODEL     = "claude-opus-4-6"
-IMAGE_THRESHOLD  = 0.30
-MAX_CLAUDE_IMGS  = 5                  # max chunk images to include in each Claude request
-CLAUDE_IMG_SIDE  = 768                # resize images to this max dimension before sending to Claude
+EMBEDDING_MODEL      = "clip-ViT-B-32"        # CLIP image encoder — embeds image chunks (512-dim)
+TEXT_EMBEDDING_MODEL = "all-MiniLM-L6-v2"    # MiniLM — dense text retrieval for text chunks + queries (384-dim)
+CLAUDE_MODEL         = "claude-opus-4-6"
+IMAGE_THRESHOLD      = 0.30
+MAX_CLAUDE_IMGS      = 2                      # max chunk images per Claude request (keep low to reduce vision token overhead)
+CLAUDE_IMG_MIN_SIM   = 0.20                   # minimum cosine similarity to send an image to Claude (skip low-relevance figures)
+CLAUDE_IMG_SIDE      = 768                    # resize images to this max dimension before sending to Claude
 SEP             = "─" * 80
 
 
@@ -749,6 +781,12 @@ def _build_chunk_image_map() -> dict[str, Path]:
     return image_map
 
 
+def _display_text(text: str, max_len: int = 200) -> str:
+    """Strip ADE image-description markers (<::...::>) from chunk text for UI display."""
+    cleaned = re.sub(r"<::.*?::>", "", text, flags=re.DOTALL).strip()
+    return cleaned[:max_len]
+
+
 def _encode_image_for_claude(img_path: Path, max_side: int = CLAUDE_IMG_SIDE) -> str:
     """Resize a chunk PNG and return a base64-encoded JPEG string for Claude's vision API."""
     import io
@@ -764,91 +802,165 @@ def _encode_image_for_claude(img_path: Path, max_side: int = CLAUDE_IMG_SIDE) ->
 
 
 def build_vector_store(force: bool = False):
+    """Build or load the dual-encoder vector store.
+
+    Dual-encoder strategy:
+      - Image chunks  → CLIP image encoder (512-dim) → embeddings.npy
+      - Text chunks   → MiniLM text encoder (384-dim) → text_embeddings.npy
+
+    At query time, the question is encoded with:
+      - CLIP text encoder → searched against image embeddings (finds relevant figures)
+      - MiniLM            → searched against text embeddings (finds relevant passages)
+
+    Results from both searches are merged by cosine score, giving accurate
+    text retrieval (MiniLM) alongside visual diagram retrieval (CLIP).
+
+    Returns a vs dict with keys:
+        clip_embedder, text_embedder, img_vecs, txt_vecs,
+        img_indices, txt_indices, store
+    """
     import numpy as np
     from sentence_transformers import SentenceTransformer
     from PIL import Image
 
     VECTOR_DIR.mkdir(exist_ok=True)
-    embedder     = SentenceTransformer(EMBEDDING_MODEL)
-    store_exists = VECTORS_FILE.exists() and DOCS_FILE.exists()
+
+    clip_embedder = SentenceTransformer(EMBEDDING_MODEL)
+    text_embedder = SentenceTransformer(TEXT_EMBEDDING_MODEL)
+
+    store_exists = (
+        VECTORS_FILE.exists() and TEXT_VECTORS_FILE.exists()
+        and IMG_INDICES_FILE.exists() and TXT_INDICES_FILE.exists()
+        and DOCS_FILE.exists()
+    )
 
     if store_exists and not force:
-        print("Loading existing vector store...")
-        vectors = np.load(VECTORS_FILE)
-        store   = json.loads(DOCS_FILE.read_text(encoding="utf-8"))
-        current = _current_parse_files()
-        indexed = _indexed_files()
-        new_count = len(set(current) - set(indexed))
+        print("Loading existing dual-encoder vector store...")
+        img_vecs    = np.load(VECTORS_FILE)
+        txt_vecs    = np.load(TEXT_VECTORS_FILE)
+        img_indices = json.loads(IMG_INDICES_FILE.read_text())
+        txt_indices = json.loads(TXT_INDICES_FILE.read_text())
+        store       = json.loads(DOCS_FILE.read_text(encoding="utf-8"))
+        current     = _current_parse_files()
+        indexed     = _indexed_files()
+        new_count   = len(set(current) - set(indexed))
         if new_count:
             print(f"  ⚠  {new_count} new parse file(s) not yet indexed — run with --rebuild to update")
-        print(f"✓ {len(store)} chunks loaded from vector store ({vectors.shape[1]}-dim CLIP)")
-        return embedder, vectors, store
+        print(f"✓ {len(store)} chunks loaded "
+              f"({img_vecs.shape[0]} image/CLIP + {txt_vecs.shape[0]} text/MiniLM)")
+        return {"clip_embedder": clip_embedder, "text_embedder": text_embedder,
+                "img_vecs": img_vecs, "txt_vecs": txt_vecs,
+                "img_indices": img_indices, "txt_indices": txt_indices, "store": store}
 
     current   = _current_parse_files()
     image_map = _build_chunk_image_map()
-    print("Building vector store from parse results...")
+    print("Building dual-encoder vector store from parse results...")
     chunks = _load_all_chunks()
     print(f"  Found {len(chunks)} chunks across {len(current)} parse files")
 
-    # Separate chunks that have a matching image from text-only chunks.
-    # CLIP encodes images and text in the same 512-dim embedding space, so
-    # image chunks are embedded from their visual content — not their (often
-    # short) captions — giving much better retrieval for diagrams and figures.
-    img_indices, txt_indices = [], []
-    img_inputs, txt_inputs   = [], []
+    # Deduplicate on text before encoding to avoid embedding duplicates.
+    # Pass a dummy index array — we only need the deduped chunks and removed_ids.
+    chunks, _, removed_ids = _deduplicate_chunks(chunks, np.arange(len(chunks)))
+    _delete_orphaned_images(removed_ids)
+
+    # Separate deduplicated chunks into image and text groups.
+    # - Image chunks: embedded by visual content via CLIP image encoder.
+    # - Text chunks:  embedded by semantic content via MiniLM.
+    img_store_indices, txt_store_indices = [], []
+    img_pil_inputs,    txt_inputs        = [], []
     for i, chunk in enumerate(chunks):
         img_path = image_map.get(chunk["id"])
         if img_path and img_path.exists():
-            img_indices.append(i)
-            img_inputs.append(Image.open(img_path).convert("RGB"))
+            img_store_indices.append(i)
+            img_pil_inputs.append(Image.open(img_path).convert("RGB"))
         else:
-            txt_indices.append(i)
+            txt_store_indices.append(i)
             txt_inputs.append(chunk["text"])
 
-    dim     = embedder.get_sentence_embedding_dimension()
-    vectors = np.zeros((len(chunks), dim), dtype=np.float32)
+    # Encode image chunks with CLIP image encoder (512-dim).
+    if img_pil_inputs:
+        print(f"  Encoding {len(img_pil_inputs)} image chunks (CLIP image encoder, 512-dim)...")
+        img_vecs = clip_embedder.encode(img_pil_inputs, show_progress_bar=True,
+                                        convert_to_numpy=True, batch_size=32)
+    else:
+        img_vecs = np.zeros((0, 512), dtype=np.float32)
 
-    if img_inputs:
-        print(f"  Encoding {len(img_inputs)} image chunks (CLIP)...")
-        img_vecs = embedder.encode(img_inputs, show_progress_bar=True,
-                                   convert_to_numpy=True, batch_size=32)
-        for i, vec in zip(img_indices, img_vecs):
-            vectors[i] = vec
-
+    # Encode text chunks with MiniLM (384-dim — optimised for dense text retrieval).
     if txt_inputs:
-        print(f"  Encoding {len(txt_inputs)} text-only chunks (CLIP text encoder)...")
-        txt_vecs = embedder.encode(txt_inputs, show_progress_bar=True,
-                                   convert_to_numpy=True, batch_size=128)
-        for i, vec in zip(txt_indices, txt_vecs):
-            vectors[i] = vec
+        txt_dim = text_embedder.get_sentence_embedding_dimension() or 384
+        print(f"  Encoding {len(txt_inputs)} text chunks (MiniLM, {txt_dim}-dim)...")
+        txt_vecs = text_embedder.encode(txt_inputs, show_progress_bar=True,
+                                        convert_to_numpy=True, batch_size=128)
+    else:
+        txt_vecs = np.zeros((0, 384), dtype=np.float32)
 
-    chunks, vectors, removed_ids = _deduplicate_chunks(chunks, vectors)
-    _delete_orphaned_images(removed_ids)
-    np.save(VECTORS_FILE, vectors)
+    np.save(VECTORS_FILE, img_vecs)
+    np.save(TEXT_VECTORS_FILE, txt_vecs)
+    IMG_INDICES_FILE.write_text(json.dumps(img_store_indices))
+    TXT_INDICES_FILE.write_text(json.dumps(txt_store_indices))
     DOCS_FILE.write_text(json.dumps(chunks, indent=2), encoding="utf-8")
     INDEXED_FILE.write_text(json.dumps(current, indent=2), encoding="utf-8")
-    print(f"✓ Vector store saved ({len(chunks)} unique chunks, {dim}-dim CLIP, "
-          f"{len(img_inputs)} image-embedded / {len(txt_inputs)} text-embedded)")
-    return embedder, vectors, chunks
+    print(f"✓ Dual-encoder vector store saved: {len(chunks)} unique chunks "
+          f"({len(img_pil_inputs)} image/CLIP-512 + {len(txt_inputs)} text/MiniLM-384)")
+    return {"clip_embedder": clip_embedder, "text_embedder": text_embedder,
+            "img_vecs": img_vecs, "txt_vecs": txt_vecs,
+            "img_indices": img_store_indices, "txt_indices": txt_store_indices,
+            "store": chunks}
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 # SECTION 4 — SEARCH + CLAUDE GENERATION
 # ══════════════════════════════════════════════════════════════════════════════
 
-def similarity_search(embedder, vectors, store, question: str, top_k: int = 5) -> list[dict]:
+def similarity_search(vs: dict, question: str, top_k: int = 5) -> list[dict]:
+    """Dual-encoder similarity search using Reciprocal Rank Fusion (RRF).
+
+    Merging CLIP and MiniLM results by raw cosine score doesn't work: MiniLM
+    text-to-text scores are systematically higher (0.4–0.8) than CLIP
+    text-to-image scores (0.1–0.35), so text-only chunks would win every slot.
+    RRF merges by rank rather than score, giving each encoder equal weight and
+    ensuring both image and text chunks appear in the final results.
+
+    The returned `similarity` field is the original cosine score (for the % badge).
+    """
     import numpy as np
-    q_vec  = embedder.encode([question], convert_to_numpy=True)[0]
-    q_norm = q_vec / (np.linalg.norm(q_vec) + 1e-10)
-    m_norm = vectors / (np.linalg.norm(vectors, axis=1, keepdims=True) + 1e-10)
-    scores = m_norm @ q_norm
-    ranked = sorted(enumerate(scores), key=lambda x: x[1], reverse=True)
-    results = []
-    for idx, score in ranked:
-        results.append({**store[idx], "similarity": float(score)})
-        if len(results) >= top_k:
-            break
-    return results
+
+    clip_embedder = vs["clip_embedder"]
+    text_embedder = vs["text_embedder"]
+    img_vecs      = vs["img_vecs"]
+    txt_vecs      = vs["txt_vecs"]
+    img_indices   = vs["img_indices"]
+    txt_indices   = vs["txt_indices"]
+    store         = vs["store"]
+
+    RRF_K = 60          # standard constant; higher = flatter rank-weight curve
+    rrf:       dict[int, float] = {}
+    raw_score: dict[int, float] = {}  # cosine scores kept for UI display
+
+    # Search image chunks with CLIP text encoder.
+    if img_vecs.shape[0] > 0:
+        q_clip = clip_embedder.encode([question], convert_to_numpy=True)[0]
+        q_norm = q_clip / (np.linalg.norm(q_clip) + 1e-10)
+        m_norm = img_vecs / (np.linalg.norm(img_vecs, axis=1, keepdims=True) + 1e-10)
+        scores = m_norm @ q_norm
+        for rank, (row_i, score) in enumerate(sorted(enumerate(scores), key=lambda x: x[1], reverse=True)):
+            store_i = img_indices[row_i]
+            rrf[store_i]       = rrf.get(store_i, 0.0) + 1.0 / (RRF_K + rank + 1)
+            raw_score[store_i] = float(score)
+
+    # Search text chunks with MiniLM.
+    if txt_vecs.shape[0] > 0:
+        q_mini = text_embedder.encode([question], convert_to_numpy=True)[0]
+        q_norm = q_mini / (np.linalg.norm(q_mini) + 1e-10)
+        m_norm = txt_vecs / (np.linalg.norm(txt_vecs, axis=1, keepdims=True) + 1e-10)
+        scores = m_norm @ q_norm
+        for rank, (row_i, score) in enumerate(sorted(enumerate(scores), key=lambda x: x[1], reverse=True)):
+            store_i = txt_indices[row_i]
+            rrf[store_i]       = rrf.get(store_i, 0.0) + 1.0 / (RRF_K + rank + 1)
+            raw_score[store_i] = float(score)
+
+    ranked = sorted(rrf.items(), key=lambda x: x[1], reverse=True)
+    return [{**store[i], "similarity": raw_score[i]} for i, _ in ranked[:top_k]]
 
 
 def _context_from_hits(hits: list[dict]) -> str:
@@ -869,9 +981,9 @@ def print_image_iterm2(image_path: Path, width: str = "40%") -> None:
     sys.stdout.flush()
 
 
-def ask_terminal(embedder, vectors, store, image_map, question: str) -> None:
+def ask_terminal(vs, image_map, question: str) -> None:
     import anthropic
-    hits    = similarity_search(embedder, vectors, store, question)
+    hits    = similarity_search(vs, question)
     context = _context_from_hits(hits)
 
     print(f"\nYou: {question}")
@@ -905,7 +1017,7 @@ def ask_terminal(embedder, vectors, store, image_map, question: str) -> None:
                 print_image_iterm2(img)
 
 
-def run_terminal(embedder, vectors, store, image_map):
+def run_terminal(vs, image_map):
     print("\n" + "─" * 60)
     print("GE HVAC Manuals RAG  (Claude opus-4-6 + LandingAI ADE)")
     print("Type your question. 'quit' to exit.")
@@ -921,14 +1033,14 @@ def run_terminal(embedder, vectors, store, image_map):
         if question.lower() in ("quit", "exit", "q"):
             print("Goodbye!")
             break
-        ask_terminal(embedder, vectors, store, image_map, question)
+        ask_terminal(vs, image_map, question)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 # SECTION 6 — FLASK WEB APP
 # ══════════════════════════════════════════════════════════════════════════════
 
-def make_flask_app(embedder, vectors, store, image_map):
+def make_flask_app(vs, image_map):
     import anthropic
     from flask import Flask, Response, render_template, send_file, stream_with_context, request, make_response
 
@@ -1002,7 +1114,7 @@ def make_flask_app(embedder, vectors, store, image_map):
 
         def generate():
             try:
-                hits    = similarity_search(embedder, vectors, store, question)
+                hits    = similarity_search(vs, question)
                 context = _context_from_hits(hits)
 
                 sources = []
@@ -1013,7 +1125,7 @@ def make_flask_app(embedder, vectors, store, image_map):
                         "similarity": round(h["similarity"], 3),
                         "chunk_type": h["chunk_type"],
                         "page":       h["page"] + 1,
-                        "text":       h["text"][:200],
+                        "text":       _display_text(h["text"]),
                         "image_url":  img_url,
                         "doc":        h["_doc_stem"],
                         "category":   h["_category"],
@@ -1022,29 +1134,28 @@ def make_flask_app(embedder, vectors, store, image_map):
 
                 yield f"data: {json.dumps({'type': 'sources', 'sources': sources})}\n\n"
 
-                # Build multimodal user message: attach chunk images so Claude
-                # can reason over the actual visual content (wiring diagrams,
-                # spec tables, installation figures) not just their text captions.
+                # Build multimodal user message: send at most 1 image to Claude —
+                # only if the top-ranked result is an image chunk and meets the
+                # minimum similarity threshold. This makes vision usage adaptive:
+                # visual questions (diagram ranked #1) get 1 image; text/lookup
+                # questions (text passage ranked #1) get 0 images.
                 user_content = []
-                img_count = 0
-                for h in hits:
-                    if img_count >= MAX_CLAUDE_IMGS:
-                        break
-                    img = image_map.get(h["id"])
-                    if img:
-                        try:
-                            img_b64 = _encode_image_for_claude(img)
-                            user_content.append({
-                                "type": "image",
-                                "source": {
-                                    "type":       "base64",
-                                    "media_type": "image/jpeg",
-                                    "data":       img_b64,
-                                },
-                            })
-                            img_count += 1
-                        except Exception:
-                            pass
+                top = hits[0] if hits else None
+                if (top and top.get("similarity", 0) >= CLAUDE_IMG_MIN_SIM
+                        and image_map.get(top["id"])):
+                    img = image_map[top["id"]]
+                    try:
+                        img_b64 = _encode_image_for_claude(img)
+                        user_content.append({
+                            "type": "image",
+                            "source": {
+                                "type":       "base64",
+                                "media_type": "image/jpeg",
+                                "data":       img_b64,
+                            },
+                        })
+                    except Exception:
+                        pass
                 user_content.append({"type": "text", "text": question})
 
                 with ant_client.messages.stream(
@@ -1079,9 +1190,9 @@ def make_flask_app(embedder, vectors, store, image_map):
     return flask_app
 
 
-def run_web(embedder, vectors, store, image_map):
+def run_web(vs, image_map):
     import os
-    flask_app = make_flask_app(embedder, vectors, store, image_map)
+    flask_app = make_flask_app(vs, image_map)
     port = int(os.environ.get("PORT", 8080))
     print(f"\n" + "─" * 60)
     print(f"GE HVAC Manuals RAG  →  http://localhost:{port}")
@@ -1122,23 +1233,23 @@ def main():
     if force_rebuild and (not PARSE_RESULTS.exists() or not any(PARSE_RESULTS.rglob("*.txt"))):
         print("No parse results found. Run 'python web_app.py --parse' first.")
         sys.exit(1)
-    embedder, vectors, store = build_vector_store(force=force_rebuild)
+    vs        = build_vector_store(force=force_rebuild)
     image_map = _build_chunk_image_map()
     print(f"✓ {len(image_map)} chunk images indexed")
 
     # ── One-shot CLI ──────────────────────────────────────────────────────────
     if positional:
         for q in positional:
-            ask_terminal(embedder, vectors, store, image_map, q)
+            ask_terminal(vs, image_map, q)
         return
 
     # ── Terminal mode ─────────────────────────────────────────────────────────
     if "--terminal" in flags:
-        run_terminal(embedder, vectors, store, image_map)
+        run_terminal(vs, image_map)
         return
 
     # ── Web mode (default) ────────────────────────────────────────────────────
-    run_web(embedder, vectors, store, image_map)
+    run_web(vs, image_map)
 
 
 if __name__ == "__main__":

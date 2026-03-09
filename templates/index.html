@@ -400,10 +400,11 @@
       border-radius: 11px; overflow: hidden;
       box-shadow: var(--sh-sm);
       animation: up 0.2s ease;
-      cursor: pointer;
+      cursor: default;
       transition: box-shadow 0.15s, border-color 0.15s, transform 0.15s;
     }
-    .sc:hover { border-color: rgba(2,126,234,0.35); box-shadow: var(--sh-md); transform: translateY(-1px); }
+    .sc.sc-clickable { cursor: pointer; }
+    .sc.sc-clickable:hover { border-color: rgba(2,126,234,0.35); box-shadow: var(--sh-md); transform: translateY(-1px); }
 
     .sc-img { background: var(--bg-mid); border-bottom: 1px solid var(--border-s); overflow: hidden; position: relative; }
     .sc-img img { width: 100%; display: block; transition: transform 0.2s; }
@@ -421,6 +422,11 @@
       padding: 12px 13px; font-size: 13px; color: var(--muted); line-height: 1.55;
       display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
       background: var(--bg-mid); border-bottom: 1px solid var(--border-s);
+    }
+    .sc-snippet {
+      padding: 7px 11px 8px; font-size: 11.5px; color: var(--muted); line-height: 1.5;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+      border-bottom: 1px solid var(--border-s);
     }
 
     .sc-footer { display: flex; flex-direction: column; gap: 4px; padding: 7px 13px 9px; }
@@ -992,9 +998,11 @@
       const card = document.createElement("div");
       card.className = "sc";
 
+      const cleanText = esc(stripHtml(s.text || ''));
+      const snippet = esc(stripHtml((s.text || '').slice(0, 200)));
       const previewHtml = s.image_url
-        ? `<div class="sc-img"><img src="${s.image_url}" alt="chunk" loading="lazy"/><span class="sc-badge">${pct}%</span></div>`
-        : `<div class="sc-no-txt">${esc(s.text)}</div>`;
+        ? `<div class="sc-img"><img src="${s.image_url}" alt="chunk" loading="lazy"/><span class="sc-badge">${pct}%</span></div><div class="sc-snippet">${snippet}</div>`
+        : `<div class="sc-no-txt">${cleanText}</div>`;
 
       card.innerHTML = `${previewHtml}
         <div class="sc-footer">
@@ -1009,6 +1017,7 @@
       list.appendChild(card);
       if (s.image_url) {
         const imgUrl = s.image_url;
+        card.classList.add("sc-clickable");
         card.addEventListener("click", () => openLb(imgUrl, lbImgs));
       }
       requestAnimationFrame(() => setTimeout(() => {
@@ -1069,6 +1078,9 @@
   }
   function esc(s) {
     return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  }
+  function stripHtml(s) {
+    return String(s).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
   }
 
   // ── Doc Viewer ─────────────────────────────────────────────────────────

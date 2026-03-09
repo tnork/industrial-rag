@@ -28,9 +28,9 @@ if _zip.exists() and not _images_dir.exists():
 # ── Load RAG resources ─────────────────────────────────────────────────────
 from web_app import build_vector_store, _build_chunk_image_map, make_flask_app
 
-embedder, vectors, store = build_vector_store(force=False)
+vs        = build_vector_store(force=False)
 image_map = _build_chunk_image_map()
 print(f"✓ {len(image_map)} chunk images indexed", flush=True)
 
 # ── Expose Flask app for gunicorn ──────────────────────────────────────────
-application = make_flask_app(embedder, vectors, store, image_map)
+application = make_flask_app(vs, image_map)

@@ -8,4 +8,5 @@ pymupdf
 Pillow
 requests
 beautifulsoup4
-# sentence-transformers[clip] pulls in torch + open_clip_torch for clip-ViT-B-32
+# sentence-transformers[clip] pulls in torch + open_clip_torch for clip-ViT-B-32 (image encoder)
+# all-MiniLM-L6-v2 is bundled in the base sentence-transformers package (no extra deps)

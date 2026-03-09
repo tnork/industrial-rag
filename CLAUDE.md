@@ -10,9 +10,9 @@ The `landingai-ade` skill is installed globally at `~/.claude/skills/landingai-a
 
 ## What This App Does
 
-GE Connect Technical Assistant — a retrieval-augmented generation system for querying GE Connect Series HVAC product manuals. Parses Connect Series PDFs with LandingAI ADE into grounded image chunks, deduplicates chunks by text content, builds a local NumPy vector store, and serves a Flask web UI where Claude Opus 4.6 answers technical questions with source citations traced back to the original document page.
+GE Connect Technical Assistant — a retrieval-augmented generation system for querying GE Connect Series HVAC product manuals. Parses Connect Series PDFs with LandingAI ADE into grounded image chunks, deduplicates chunks by text content, builds a dual-encoder NumPy vector store, and serves a Flask web UI where Claude Opus 4.6 answers technical questions with source citations and visual chunk previews.
 
-**Current corpus stats:** 7 documents, 1,478 unique chunks, 1,451 chunk images (deduplicated)
+**Current corpus stats:** 7 documents, 1,479 unique chunks (1,297 image + 182 text-only after dedup), 1,305 chunk images
 
 ---
 
@@ -21,9 +21,10 @@ GE Connect Technical Assistant — a retrieval-augmented generation system for q
 | Layer | Technology | Notes |
 |---|---|---|
 | **Web framework** | Flask (unversioned) | Port 8080 local / 7860 HF; SSE streaming; vanilla JS/CSS frontend |
-| **Vector store** | NumPy + JSON (local files) | `embeddings.npy` + `documents.json` |
-| **Embedding model** | `sentence-transformers/all-MiniLM-L6-v2` | 384-dim, local, free, no API key |
-| **LLM** | Anthropic `claude-opus-4-6` | Streaming via `anthropic` SDK directly |
+| **Vector store** | NumPy + JSON (local files) | `embeddings.npy` (512-dim CLIP) + `text_embeddings.npy` (384-dim MiniLM) + `documents.json` |
+| **Image embedding** | `sentence-transformers/clip-ViT-B-32` | 512-dim; image chunks encoded by visual content via CLIP image encoder |
+| **Text embedding** | `sentence-transformers/all-MiniLM-L6-v2` | 384-dim; text chunks + query encoded by MiniLM for dense semantic retrieval |
+| **LLM** | Anthropic `claude-opus-4-6` | Streaming + vision via `anthropic` SDK directly |
 | **Document parsing** | LandingAI ADE (`dpt-2-latest`) | Requires `VISION_AGENT_API_KEY` |
 | **PDF rendering** | PyMuPDF (`fitz`) | Renders pages for chunk image cropping |
 | **Image cropping** | Pillow (`PIL`) | Saves PNG crops of each chunk bbox |
@@ -56,7 +57,9 @@ Store in a `.env` file in the project root (excluded from git via `.gitignore`).
 
 ```bash
 # RAG system + web UI (required for all modes)
-pip install anthropic sentence-transformers numpy python-dotenv flask gunicorn pymupdf Pillow
+# sentence-transformers[clip] adds torch + open_clip_torch for clip-ViT-B-32;
+# all-MiniLM-L6-v2 is included in the base sentence-transformers package
+pip install anthropic "sentence-transformers[clip]" numpy python-dotenv flask gunicorn pymupdf Pillow
 
 # PDF downloader only (--download mode)
 pip install requests beautifulsoup4
@@ -117,30 +120,35 @@ All functionality lives in one file with 7 sections:
 3. `client.parse(document=Path(...), model="dpt-2-latest")` → saves to `parse_results/connect_series/{stem}.txt`
 4. `_crop_chunks()` renders each PDF page with PyMuPDF and crops chunk bounding boxes → `chunk_images/connect_series/{stem}/NNN_type_uuid.png`
 
-**Section 3 — Vector store build (`--rebuild`):**
+**Section 3 — Vector store build (`--rebuild`) — dual-encoder:**
 1. `_load_all_chunks()` reads all `parse_results/connect_series/*.txt` and extracts CHUNKS JSON
-2. `SentenceTransformer("all-MiniLM-L6-v2")` encodes each chunk's markdown text (384-dim)
-3. `_deduplicate_chunks()` removes chunks with identical text, keeping first occurrence; logs count
-4. `_delete_orphaned_images()` deletes PNG files for removed duplicate chunk IDs
-5. Saves deduplicated `embeddings.npy` + `documents.json` + `indexed_files.json`
+2. `_deduplicate_chunks()` removes chunks with identical text *before* encoding; logs count
+3. `_delete_orphaned_images()` deletes PNG files for removed duplicate chunk IDs
+4. Chunks are separated into two groups based on whether a matching chunk image exists:
+   - **Image chunks** → encoded with CLIP image encoder (512-dim) via `SentenceTransformer("clip-ViT-B-32")`; captures visual content of figures, wiring diagrams, tables
+   - **Text-only chunks** → encoded with MiniLM (384-dim) via `SentenceTransformer("all-MiniLM-L6-v2")`; optimized for dense semantic passage retrieval
+5. Saves `embeddings.npy` (CLIP, M×512) + `text_embeddings.npy` (MiniLM, N×384) + `img_indices.json` + `txt_indices.json` + `documents.json` + `indexed_files.json`
 
 **Sections 4–6 — RAG pipeline + web server:**
-1. **Search** — cosine similarity in numpy over 384-dim embeddings
-2. **Generate** — `anthropic.Anthropic().messages.stream()` with `claude-opus-4-6`; system prompt instructs the model to answer only from retrieved GE Connect manual context
-3. **Web UI** — Flask on port 8080; `/ask?q=...` streams SSE events (`sources` → `token`... → `done`)
+1. **Search** — `similarity_search(vs, question)` uses Reciprocal Rank Fusion (RRF, k=60) to merge results from both encoders:
+   - CLIP text encoder → ranked image results
+   - MiniLM → ranked text results
+   - RRF merges by rank rather than raw score, giving each encoder equal weight (raw cosine scores are incomparable: MiniLM text-to-text is typically 0.4–0.8 while CLIP text-to-image is 0.1–0.35). The original cosine score is kept for UI display only.
+2. **Generate** — `anthropic.Anthropic().messages.stream()` with `claude-opus-4-6`; **0 or 1** image sent per request: an image is included only if the top-ranked result is an image chunk with cosine similarity ≥ `CLAUDE_IMG_MIN_SIM` (0.20). Visual queries get 1 image; text/lookup queries get 0, eliminating vision token cost for those requests.
+3. **Web UI** — Flask on port 8080; `/ask?q=...` streams SSE events (`sources` → `token`... → `done`); image chunk cards show preview + snippet and are clickable (lightbox); text-only cards are non-clickable (`cursor: default`, no hover lift)
 
 ### app.py — HuggingFace Spaces entrypoint
 
 Thin boot script for gunicorn:
 1. Extracts `chunk_images.zip` on cold start (if dir missing)
-2. Imports `build_vector_store`, `_build_chunk_image_map`, `make_flask_app` from `web_app`
+2. Imports `build_vector_store`, `_build_chunk_image_map`, `_build_page_index`, `make_flask_app` from `web_app`
 3. Exposes `application` for gunicorn
 
 ### Web UI — templates/index.html
 
 Single-page chat interface with LandingAI + Claude branding:
 - **Left panel** — streaming chat; responses appear token-by-token via Server-Sent Events
-- **Right panel** — source chunks sidebar; doc name, chunk preview image, confidence bar, page number
+- **Right panel** — source chunks sidebar; each card shows: chunk image (if available) + text snippet + doc name + page number + % match confidence bar
 - Clicking a chunk opens a full-screen lightbox with prev/next navigation and frosted doc name pill
 - Pre-built suggestion chips on the welcome screen (4 GE Connect questions in a 2-column grid)
 - **Original Doc Viewer** — browse Connect Series PDFs; opens PDFs in a new tab
@@ -154,7 +162,8 @@ Single-page chat interface with LandingAI + Claude branding:
 - **Model:** `claude-opus-4-6`
 - **Pattern:** streaming via `client.messages.stream()`
 - **Max tokens:** 1024 per response
-- **System prompt:** instructs Claude to answer only from retrieved GE Connect manual context
+- **Vision:** 0 or 1 image per request (adaptive). Sent only when `hits[0]` is an image chunk with similarity ≥ `CLAUDE_IMG_MIN_SIM` (0.20). Base64 JPEG, max 768px. Visual queries get 1 image; text/lookup queries get 0.
+- **System prompt:** instructs Claude to answer only from retrieved GE Connect manual context and images
 - **No LangChain** — uses `anthropic` SDK directly
 
 ---
@@ -164,7 +173,7 @@ Single-page chat interface with LandingAI + Claude branding:
 - Input PDFs: `ge_hvac_manuals/connect_series/`
 - Parse results: `parse_results/connect_series/{stem}.txt`
 - Chunk images: `chunk_images/connect_series/{stem}/NNN_type_uuid.png` *(excluded from git)*
-- Vector store: `vector_store/` (`embeddings.npy`, `documents.json`, `indexed_files.json`)
+- Vector store: `vector_store/` (`embeddings.npy`, `text_embeddings.npy`, `img_indices.json`, `txt_indices.json`, `documents.json`, `indexed_files.json`)
 - Web UI template: `templates/index.html`
 
 **Connect Series documents (7 files):**
@@ -187,7 +196,7 @@ Multiple service manual versions share many identical pages. The pipeline dedupl
 1. **Chunk-level (text)** — `_deduplicate_chunks()` removes chunks with identical text before saving the vector store. Runs automatically on every `--rebuild`.
 2. **Image-level (content hash)** — pixel-identical PNG files across document subdirs can be removed by running the hash-dedup script manually (see previous session notes).
 
-Result: 3,692 raw chunks → 1,478 unique chunks after dedup.
+Result: 3,692 raw chunks → 1,479 unique chunks after dedup (1,297 image-embedded + 182 text-only). Deduplication now runs before encoding in `build_vector_store` to avoid wasting time embedding duplicates.
 
 ---
 
