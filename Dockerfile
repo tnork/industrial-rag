@@ -17,17 +17,19 @@ RUN pip install --no-cache-dir -r requirements.txt
 ENV SENTENCE_TRANSFORMERS_HOME=/app/.cache/sentence_transformers
 ENV HF_HOME=/app/.cache/huggingface
 
-# Pre-cache both embedding models into this image layer.
+# Pre-cache all three models into this image layer.
 # Dual-encoder retrieval requires:
-#   - all-MiniLM-L6-v2  (384-dim, text encoder for text-only chunks + query)
-#   - clip-ViT-B-32      (512-dim, image + text encoder for image chunks)
+#   - all-MiniLM-L6-v2                  (384-dim, text encoder for text-only chunks + query)
+#   - clip-ViT-B-32                      (512-dim, image + text encoder for image chunks)
+#   - cross-encoder/ms-marco-MiniLM-L6-v2 (~40MB, cross-encoder reranker)
 # HF_HUB_OFFLINE is temporarily unset during build so downloads succeed;
 # at runtime it is set to 1 to prevent any DNS lookups.
 RUN HF_HUB_OFFLINE=0 python -c "\
-from sentence_transformers import SentenceTransformer; \
+from sentence_transformers import SentenceTransformer, CrossEncoder; \
 SentenceTransformer('all-MiniLM-L6-v2'); \
 SentenceTransformer('clip-ViT-B-32'); \
-print('Both models cached.')"
+CrossEncoder('cross-encoder/ms-marco-MiniLM-L6-v2'); \
+print('All three models cached.')"
 
 # Prevent all HF/transformers network calls at runtime.
 # HF_HUB_OFFLINE covers huggingface_hub; TRANSFORMERS_OFFLINE covers the

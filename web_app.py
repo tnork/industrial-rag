@@ -87,6 +87,9 @@ INDEXED_FILE      = VECTOR_DIR / "indexed_files.json"
 
 EMBEDDING_MODEL      = "clip-ViT-B-32"        # CLIP image encoder — embeds image chunks (512-dim)
 TEXT_EMBEDDING_MODEL = "all-MiniLM-L6-v2"    # MiniLM — dense text retrieval for text chunks + queries (384-dim)
+RERANK_MODEL         = "cross-encoder/ms-marco-MiniLM-L6-v2"  # cross-encoder reranker (~40MB)
+RERANK_CANDIDATES    = 20                     # candidates fetched from RRF before cross-encoder reranking
+CONF_WEIGHT          = 0.15                   # ADE confidence soft boost inside reranking (0 = off)
 CLAUDE_MODEL         = "claude-opus-4-6"
 IMAGE_THRESHOLD      = 0.30
 MAX_CLAUDE_IMGS      = 2                      # max chunk images per Claude request (top 2 most relevant)
@@ -892,13 +895,14 @@ def build_vector_store(force: bool = False):
         img_indices, txt_indices, store
     """
     import numpy as np
-    from sentence_transformers import SentenceTransformer
+    from sentence_transformers import SentenceTransformer, CrossEncoder
     from PIL import Image
 
     VECTOR_DIR.mkdir(exist_ok=True)
 
     clip_embedder = SentenceTransformer(EMBEDDING_MODEL)
     text_embedder = SentenceTransformer(TEXT_EMBEDDING_MODEL)
+    reranker      = CrossEncoder(RERANK_MODEL)
 
     store_exists = (
         VECTORS_FILE.exists() and TEXT_VECTORS_FILE.exists()
@@ -921,6 +925,7 @@ def build_vector_store(force: bool = False):
         print(f"✓ {len(store)} chunks loaded "
               f"({img_vecs.shape[0]} image/CLIP + {txt_vecs.shape[0]} text/MiniLM)")
         return {"clip_embedder": clip_embedder, "text_embedder": text_embedder,
+                "reranker": reranker,
                 "img_vecs": img_vecs, "txt_vecs": txt_vecs,
                 "img_indices": img_indices, "txt_indices": txt_indices, "store": store}
 
@@ -975,6 +980,7 @@ def build_vector_store(force: bool = False):
     print(f"✓ Dual-encoder vector store saved: {len(chunks)} unique chunks "
           f"({len(img_pil_inputs)} image/CLIP-512 + {len(txt_inputs)} text/MiniLM-384)")
     return {"clip_embedder": clip_embedder, "text_embedder": text_embedder,
+            "reranker": reranker,
             "img_vecs": img_vecs, "txt_vecs": txt_vecs,
             "img_indices": img_store_indices, "txt_indices": txt_store_indices,
             "store": chunks}
@@ -985,13 +991,20 @@ def build_vector_store(force: bool = False):
 # ══════════════════════════════════════════════════════════════════════════════
 
 def similarity_search(vs: dict, question: str, top_k: int = 5) -> list[dict]:
-    """Dual-encoder similarity search using Reciprocal Rank Fusion (RRF).
+    """Dual-encoder retrieval with cross-encoder reranking.
 
-    Merging CLIP and MiniLM results by raw cosine score doesn't work: MiniLM
-    text-to-text scores are systematically higher (0.4–0.8) than CLIP
-    text-to-image scores (0.1–0.35), so text-only chunks would win every slot.
-    RRF merges by rank rather than score, giving each encoder equal weight and
-    ensuring both image and text chunks appear in the final results.
+    Stage 1 — Reciprocal Rank Fusion (RRF):
+      CLIP text encoder searches image chunks; MiniLM searches text chunks.
+      RRF merges by rank position (not raw cosine score, which is incomparable
+      across encoders). Fetches RERANK_CANDIDATES (20) candidates — a wider net
+      for the reranker to work from.
+
+    Stage 2 — Cross-encoder reranking:
+      ms-marco-MiniLM-L6-v2 scores each (query, chunk_text) pair together in a
+      single forward pass, producing a true relevance score rather than a vector
+      proximity approximation. ADE confidence is blended as a small soft boost
+      (CONF_WEIGHT=0.15) to prefer better-parsed chunks when scores are close.
+      Figures (confidence=None) receive a neutral factor of 1.0.
 
     The returned `similarity` field is the original cosine score (for the % badge).
     """
@@ -999,6 +1012,7 @@ def similarity_search(vs: dict, question: str, top_k: int = 5) -> list[dict]:
 
     clip_embedder = vs["clip_embedder"]
     text_embedder = vs["text_embedder"]
+    reranker      = vs["reranker"]
     img_vecs      = vs["img_vecs"]
     txt_vecs      = vs["txt_vecs"]
     img_indices   = vs["img_indices"]
@@ -1009,7 +1023,7 @@ def similarity_search(vs: dict, question: str, top_k: int = 5) -> list[dict]:
     rrf:       dict[int, float] = {}
     raw_score: dict[int, float] = {}  # cosine scores kept for UI display
 
-    # Search image chunks with CLIP text encoder.
+    # Stage 1a — Search image chunks with CLIP text encoder.
     if img_vecs.shape[0] > 0:
         q_clip = clip_embedder.encode([question], convert_to_numpy=True)[0]
         q_norm = q_clip / (np.linalg.norm(q_clip) + 1e-10)
@@ -1020,7 +1034,7 @@ def similarity_search(vs: dict, question: str, top_k: int = 5) -> list[dict]:
             rrf[store_i]       = rrf.get(store_i, 0.0) + 1.0 / (RRF_K + rank + 1)
             raw_score[store_i] = float(score)
 
-    # Search text chunks with MiniLM.
+    # Stage 1b — Search text chunks with MiniLM.
     if txt_vecs.shape[0] > 0:
         q_mini = text_embedder.encode([question], convert_to_numpy=True)[0]
         q_norm = q_mini / (np.linalg.norm(q_mini) + 1e-10)
@@ -1031,8 +1045,21 @@ def similarity_search(vs: dict, question: str, top_k: int = 5) -> list[dict]:
             rrf[store_i]       = rrf.get(store_i, 0.0) + 1.0 / (RRF_K + rank + 1)
             raw_score[store_i] = float(score)
 
-    ranked = sorted(rrf.items(), key=lambda x: x[1], reverse=True)
-    return [{**store[i], "similarity": raw_score[i]} for i, _ in ranked[:top_k]]
+    ranked     = sorted(rrf.items(), key=lambda x: x[1], reverse=True)
+    candidates = [{**store[i], "similarity": raw_score[i]} for i, _ in ranked[:RERANK_CANDIDATES]]
+
+    # Stage 2 — Cross-encoder reranking over the top RERANK_CANDIDATES.
+    # Pairs (question, chunk_text) are scored jointly — far more accurate than
+    # bi-encoder cosine proximity for ranking the final top-k.
+    pairs     = [(question, c["text"]) for c in candidates]
+    ce_scores = reranker.predict(pairs)
+    for c, ce_score in zip(candidates, ce_scores):
+        conf        = c.get("confidence")
+        conf_factor = 1.0 + CONF_WEIGHT * conf if conf is not None else 1.0
+        c["rerank_score"] = float(ce_score) * conf_factor
+
+    candidates.sort(key=lambda c: c["rerank_score"], reverse=True)
+    return candidates[:top_k]
 
 
 def _context_from_hits(hits: list[dict]) -> str:
