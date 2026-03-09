@@ -12,7 +12,7 @@ The `landingai-ade` skill is installed globally at `~/.claude/skills/landingai-a
 
 GE Connect Technical Assistant — a retrieval-augmented generation system for querying GE Connect Series HVAC product manuals. Parses Connect Series PDFs with LandingAI ADE into grounded image chunks, deduplicates chunks by text content, builds a dual-encoder NumPy vector store, and serves a Flask web UI where Claude Opus 4.6 answers technical questions with source citations and visual chunk previews.
 
-**Current corpus stats:** 7 documents, 1,479 unique chunks (1,297 image + 182 text-only after dedup), 1,305 chunk images
+**Current corpus stats:** 10 documents, 2,241 unique chunks (2,048 image + 193 text-only after dedup), 2,067 chunk images
 
 ---
 
@@ -68,7 +68,7 @@ pip install requests beautifulsoup4
 pip install landingai-ade
 ```
 
-> **No pinned versions** — all dependencies installed manually without version constraints.
+> **Pinned versions** — `requirements.txt` is pinned to versions confirmed working Mar 2026. Use `pip install -r requirements.txt` for a reproducible install.
 
 > **Python 3.14 note:** ChromaDB and LangChain fail on Python 3.14 due to pydantic v1 incompatibility. The RAG system uses `numpy` + `anthropic` SDK directly instead.
 
@@ -181,7 +181,10 @@ Single-page chat interface with LandingAI + Claude branding:
 |---|---|
 | `62 - GE Connect Series Submittal 05-13-21.pdf` | Submittal / specs |
 | `65 - GE_Connect Series Service Manual_Rev. 06-09-2021.pdf` | Service manual |
-| `Connect-Installation-Manual-Outdoor.pdf` | Installation manual |
+| `61 - GE_Connect-High static AHU Installation Manual_04302021.pdf` | Installation manual (indoor, high-static AHU) |
+| `GE Connect Installation Manual Indoor AHU 2021.pdf` | Installation manual (indoor, standard AHU) |
+| `GE_Connect_Specification_Guide_032822.pdf` | Specification guide (Mar 2022) |
+| `Connect-Installation-Manual-Outdoor.pdf` | Installation manual (outdoor) |
 | `GE Connect Series Service Manual 2020902.pdf` | Service manual |
 | `GE Connect Service Manual 03-12-2021.pdf` | Service manual |
 | `GE Connect Spec Sheet 08-29-20.pdf` | Spec sheet |
@@ -196,13 +199,13 @@ Multiple service manual versions share many identical pages. The pipeline dedupl
 1. **Chunk-level (text)** — `_deduplicate_chunks()` removes chunks with identical text before saving the vector store. Runs automatically on every `--rebuild`.
 2. **Image-level (content hash)** — pixel-identical PNG files across document subdirs can be removed by running the hash-dedup script manually (see previous session notes).
 
-Result: 3,692 raw chunks → 1,479 unique chunks after dedup (1,297 image-embedded + 182 text-only). Deduplication now runs before encoding in `build_vector_store` to avoid wasting time embedding duplicates.
+Result: 5,181 raw chunks → 2,241 unique chunks after dedup (2,048 image-embedded + 193 text-only). Deduplication now runs before encoding in `build_vector_store` to avoid wasting time embedding duplicates.
 
 ---
 
 ## Known Limitations & Tech Debt
 
-- **No pinned requirements** — dependency versions are unpinned; breakage risk on fresh installs
+- **Pinned requirements** — all dependencies pinned to versions confirmed working Mar 2026; re-evaluate on upgrades
 - **chunk_images** — excluded from git; must be regenerated after fresh clone (`--parse --all` then `--rebuild`)
 - **Vector store is flat files** — no indexing; full cosine scan per query (fast enough locally, won't scale)
 - **Max tokens capped at 1024** — long answers may be truncated

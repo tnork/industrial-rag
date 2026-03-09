@@ -1,12 +1,12 @@
-anthropic
-sentence-transformers[clip]
-numpy
-flask
-gunicorn
-python-dotenv
-pymupdf
-Pillow
-requests
-beautifulsoup4
+anthropic==0.84.0
+sentence-transformers[clip]==5.2.3
+numpy==2.4.2
+flask==3.1.3
+gunicorn==23.0.0
+python-dotenv==1.2.2
+pymupdf==1.27.1
+Pillow==12.1.1
+requests==2.32.5
+beautifulsoup4==4.14.3
 # sentence-transformers[clip] pulls in torch + open_clip_torch for clip-ViT-B-32 (image encoder)
 # all-MiniLM-L6-v2 is bundled in the base sentence-transformers package (no extra deps)

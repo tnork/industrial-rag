@@ -21,7 +21,7 @@ A multimodal RAG assistant for GE Connect Series HVAC product manuals. Ask a que
 ## What it does
 
 - Answers technical questions about GE Connect Series heat pumps and related equipment
-- Retrieves relevant context from 7 GE Connect Series PDFs (service manuals, installation guides, spec sheets, submittal docs) spanning Sep 2020 – Nov 2022
+- Retrieves relevant context from 10 GE Connect Series PDFs (service manuals, installation manuals, spec sheets, specification guide, submittal docs) spanning Aug 2020 – Nov 2022
 - **Parsed with LandingAI Agentic Document Extraction (ADE)** — extracts figures, tables, and text blocks with precise bounding boxes, enabling the RAG system to retrieve the exact page region that answers a question
 - **Dual-encoder retrieval** — image chunks embedded with `clip-ViT-B-32` (visual content) and text-only chunks embedded with `all-MiniLM-L6-v2` (semantic search); both ranked lists merged per query using Reciprocal Rank Fusion (RRF) so neither encoder dominates
 - **Adaptive vision** — sends 0 or 1 image to Claude per request: an image is included only when the top-ranked result is an image chunk that meets a minimum similarity threshold; purely textual queries incur no vision token cost
@@ -37,10 +37,13 @@ A multimodal RAG assistant for GE Connect Series HVAC product manuals. Ask a que
 | GE Connect Series Service Manual (Mar 2021) | Service manual |
 | GE Connect Series Service Manual (Sep 2020) | Service manual |
 | Connect Series Installation Manual (Outdoor) | Installation manual |
+| Connect Series Installation Manual (Indoor AHU — High Static, Apr 2021) | Installation manual |
+| Connect Series Installation Manual (Indoor AHU — Standard, 2021) | Installation manual |
+| GE Connect Specification Guide (Mar 2022) | Specification guide |
 | GE Connect Series Submittal (May 2021) | Submittal / specs |
 | GE Connect Spec Sheet (Aug 2020) | Spec sheet |
 
-**~1,479 unique chunks** after deduplication across overlapping manual versions (1,297 image chunks + 182 text-only chunks).
+**~2,241 unique chunks** after deduplication across overlapping manual versions (2,048 image chunks + 193 text-only chunks).
 
 ## Stack
 
@@ -93,8 +96,7 @@ This is a demo scoped to GE Connect Series. The same architecture generalizes to
 - **Vector store** — replace NumPy flat-file scan with a proper vector database (pgvector, Pinecone, Weaviate, Qdrant). Full cosine scan over 1,500 chunks is fine locally; it won't scale.
 - **Embedding** — consider a domain-adapted or higher-capacity model. MiniLM-L6 is fast and surprisingly capable, but larger models (e.g. `bge-large`, `text-embedding-3-large`) close the gap on technical/domain-specific retrieval.
 - **Reranking** — add a cross-encoder reranker (e.g. `ms-marco-MiniLM-L6-reranking`) on top of the dual-encoder retrieval for a significant precision boost.
-- **Chunking** — ADE's layout-aware chunks are good, but chunk size, overlap, and hierarchy (parent-child retrieval) would need tuning for a production corpus.
 - **Auth & rate limiting** — the web UI has no authentication or per-user quota. Add both before exposing publicly.
 - **Observability** — no tracing, no query logging, no retrieval quality metrics. Add LangSmith, Langfuse, or similar.
 - **Multi-tenancy / access control** — a single shared index is fine for a demo; a real product would scope retrieval per user or per organization.
-- **Pinned dependencies** — `requirements.txt` has no version pins; add them before shipping.
+- **Pinned dependencies** — `requirements.txt` is now pinned to versions confirmed working as of Mar 2026; re-evaluate pins when upgrading.

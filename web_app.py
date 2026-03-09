@@ -167,6 +167,33 @@ KNOWN_DOCS = [
         "date":     "2020-08",
         "url":      GEA_BASE + "GE%20Connect%20Series/GE%20Connect%20Spec%20Sheet%2008-29-20.pdf",
     },
+    # ── Connect Series (additional authoritative documents) ───────────────────
+    # Indoor air handler manuals — the existing corpus only covers the outdoor
+    # unit. These two cover the ducted AHU (high-static and standard variants).
+    {
+        "series":   "Connect Series",
+        "folder":   "connect_series",
+        "doc_type": "Installation Manual (Indoor AHU — High Static)",
+        "date":     "2021-04",
+        "url":      GEA_BASE + "GE%20Connect%20Series/61%20-%20GE_Connect-High%20static%20AHU%20Installation%20Manual_04302021.pdf",
+    },
+    {
+        "series":   "Connect Series",
+        "folder":   "connect_series",
+        "doc_type": "Installation Manual (Indoor AHU — Standard)",
+        "date":     "2021",
+        "url":      GEA_BASE + "GE%20Connect%20Series/GE%20Connect%20Installation%20Manual%20Indoor%20AHU%202021.pdf",
+    },
+    # Specification Guide (Mar 2022) — more detailed than the basic spec sheet;
+    # includes engineering selection data, capacity tables, and electrical specs.
+    # Newer than any spec document currently in the corpus.
+    {
+        "series":   "Connect Series",
+        "folder":   "connect_series",
+        "doc_type": "Specification Guide",
+        "date":     "2022-03",
+        "url":      GEA_BASE + "GE%20Connect%20Series/GE_Connect_Specification_Guide_032822.pdf",
+    },
     # ── Endure Series Multi-Zone ──────────────────────────────────────────────
     {
         "series":   "Endure Series Multi",
