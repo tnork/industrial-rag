@@ -7,17 +7,17 @@ sdk: docker
 app_port: 7860
 pinned: false
 license: mit
-short_description: RAG assistant for GE Connect Series HVAC product manuals
+short_description: RAG assistant for GE Connect Series product manuals with visual grounding
 ---
 
 # GE Connect Technical Assistant
 
-A retrieval-augmented generation (RAG) system for querying GE Connect Series HVAC product manuals.
+A retrieval-augmented generation (RAG) system for querying GE Connect Series product manuals, with visual grounding using bounding boxes, image chunks, and confidence scoring.
 
 ## What it does
 
-- Answers technical questions about GE Connect Series heat pumps and HVAC equipment
-- Retrieves relevant context from 7 GE Connect Series PDFs (service manuals, installation guides, spec sheets, submittal docs)
+- Answers technical questions about GE Connect Series heat pumps and related equipment
+- Retrieves relevant context from 7 GE Connect Series PDFs (service manuals, installation guides, spec sheets, submittal docs) spanning Sep 2020 – Nov 2022
 - Streams answers via Claude Opus 4.6 with source citations and chunk preview images
 - Includes an Original Doc Viewer for browsing source PDFs (opens in new tab)
 
