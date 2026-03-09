@@ -1017,10 +1017,10 @@ def similarity_search(vs: dict, question: str, top_k: int = 5) -> list[dict]:
       Figures (confidence=None) receive a neutral factor of 1.0.
 
     Both scores are returned per hit:
-      - `rerank_score`: the Stage 2 cross-encoder score (used for final ranking and
-        the UI relevance % badge — normalized to batch max so the top chunk = 100%).
-        This is the honest relevance signal; cosine scores are incomparable across
-        CLIP and MiniLM encoders and would be misleading as a display metric.
+      - `rerank_score`: the Stage 2 cross-encoder score (raw logit). Used for final
+        ranking. The UI converts it to a % badge via sigmoid (1/(1+e^-score)), which
+        maps logits to 0–100% without breaking when scores are negative. This is the
+        honest relevance signal; cosine scores are incomparable across encoders.
       - `similarity`: the raw Stage 1 cosine score, preserved for the Claude image
         selection threshold (CLAUDE_IMG_MIN_SIM) which needs a stable 0–1 value.
     """
@@ -1232,17 +1232,18 @@ def make_flask_app(vs, image_map):
                 hits    = similarity_search(vs, question)
                 context = _context_from_hits(hits)
 
-                # Normalize rerank scores to [0, 1] relative to the top hit so the
-                # UI badge shows "% of best match" rather than a raw logit. cosine
-                # similarity is kept separately for the Claude image threshold.
-                top_rerank = max(h.get("rerank_score", 0) for h in hits) or 1.0
+                # Send raw cross-encoder logit as rerank_score; sigmoid is applied
+                # in the UI (1/(1+e^-score)) to convert to 0–100%. Division-based
+                # normalization breaks when all logits are negative (dividing by a
+                # negative max inverts the ordering and produces values >100%).
+                # cosine similarity is kept separately for CLAUDE_IMG_MIN_SIM.
                 sources = []
                 for h in hits:
                     img     = image_map.get(h["id"])
                     img_url = f"/chunk_images/{img.relative_to(CHUNK_IMAGES)}" if img else None
                     sources.append({
                         "similarity":    round(h["similarity"], 3),
-                        "rerank_score":  round(h.get("rerank_score", 0) / top_rerank, 3),
+                        "rerank_score":  round(h.get("rerank_score", 0), 4),
                         "chunk_type": h["chunk_type"],
                         "page":       h["page"] + 1,
                         "text":       _display_text(h["text"]),

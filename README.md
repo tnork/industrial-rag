@@ -53,7 +53,7 @@ A multimodal RAG assistant for GE Connect Series product manuals. Ask a question
 | Text embedding | `sentence-transformers/all-MiniLM-L6-v2` (384-dim) — table chunks + text-only chunks, using ADE-extracted text |
 | Image embedding | `sentence-transformers/clip-ViT-B-32` image encoder (512-dim) — figure/logo chunks only, encoded by visual content |
 | Retrieval — Stage 1 | Reciprocal Rank Fusion (RRF, k=60) — merges CLIP and MiniLM ranked lists by rank position, not raw cosine score (scores are incomparable across encoders); top 20 candidates forwarded to Stage 2 |
-| Retrieval — Stage 2 | `cross-encoder/ms-marco-MiniLM-L6-v2` reranker — scores `(query, chunk_text)` pairs jointly for precision; ADE confidence used as a 15% soft boost; final top 5 returned; rerank score (normalized to batch max) shown as the UI relevance % badge |
+| Retrieval — Stage 2 | `cross-encoder/ms-marco-MiniLM-L6-v2` reranker — scores `(query, chunk_text)` pairs jointly for precision; ADE confidence used as a 15% soft boost; final top 5 returned; raw logit converted via sigmoid to the UI relevance % badge |
 | Vector store | NumPy flat files (`embeddings.npy` + `text_embeddings.npy`) + cosine similarity |
 | Document parsing | LandingAI ADE `dpt-2-latest` (build-time only) |
 | Chunk images | PyMuPDF page render → Pillow bbox crop → PNG for CLIP + Claude vision |
