@@ -42,7 +42,7 @@ Retrieval — two-stage pipeline:
     score. This is necessary because MiniLM text-to-text scores (0.4–0.8) are
     systematically higher than CLIP text-to-image scores (0.1–0.35) — raw-score
     merging would cause text-only chunks to dominate every result set. RRF gives
-    each encoder equal weight. Top RERANK_CANDIDATES (20) forwarded to Stage 2.
+    each encoder equal weight. Top RERANK_CANDIDATES (40) forwarded to Stage 2.
     The original cosine score is preserved for UI display.
   Stage 2 — Cross-encoder reranking (cross-encoder/ms-marco-MiniLM-L6-v2):
     Scores (query, chunk_text) pairs jointly in a single forward pass — far more
@@ -95,7 +95,7 @@ INDEXED_FILE      = VECTOR_DIR / "indexed_files.json"
 EMBEDDING_MODEL      = "clip-ViT-B-32"        # CLIP image encoder — embeds image chunks (512-dim)
 TEXT_EMBEDDING_MODEL = "all-MiniLM-L6-v2"    # MiniLM — dense text retrieval for text chunks + queries (384-dim)
 RERANK_MODEL         = "cross-encoder/ms-marco-MiniLM-L6-v2"  # cross-encoder reranker (~40MB)
-RERANK_CANDIDATES    = 20                     # candidates fetched from RRF before cross-encoder reranking
+RERANK_CANDIDATES    = 40                     # candidates fetched from RRF before cross-encoder reranking; wider net means the right chunk is more likely to reach Stage 2
 CONF_WEIGHT          = 0.15                   # ADE confidence soft boost inside reranking (0 = off)
 CLAUDE_MODEL         = "claude-opus-4-6"
 IMAGE_THRESHOLD      = 0.30
@@ -861,11 +861,27 @@ def _build_chunk_image_map() -> dict[str, Path]:
     return image_map
 
 
+def _strip_html(text: str) -> str:
+    """Remove HTML tags and collapse whitespace.
+
+    Used before MiniLM embedding for table chunks: ADE stores table content as
+    HTML (<table><tr><td>…</td></tr></table>). The tag noise dilutes the semantic
+    signal — embedding the raw HTML causes MiniLM to encode <td id="..."> tokens
+    instead of the actual cell values. Stripping tags before encoding improves
+    cosine similarity scores for table queries (e.g. 'refrigerant charge for 36K').
+    The original HTML is preserved in documents.json for UI display.
+    """
+    cleaned = re.sub(r"<[^>]+>", " ", text)          # remove all tags
+    return re.sub(r"\s+", " ", cleaned).strip()       # collapse whitespace
+
+
 def _display_text(text: str, max_len: int = 200) -> str:
-    """Clean chunk text for UI display: strip ADE markers and markdown formatting."""
+    """Clean chunk text for UI display: strip ADE markers, HTML, and markdown formatting."""
     cleaned = re.sub(r"<::.*?::>", "", text, flags=re.DOTALL)   # ADE image markers
+    cleaned = re.sub(r"<[^>]+>", " ", cleaned)                  # HTML tags (table chunks)
     cleaned = re.sub(r'\*{1,3}(.*?)\*{1,3}', r'\1', cleaned)    # bold/italic **x**
     cleaned = re.sub(r'^#{1,6}\s*', '', cleaned, flags=re.MULTILINE)  # headings
+    cleaned = re.sub(r"\s+", " ", cleaned)                       # collapse whitespace
     return cleaned.strip()[:max_len]
 
 
@@ -962,7 +978,11 @@ def build_vector_store(force: bool = False):
             img_pil_inputs.append(Image.open(img_path).convert("RGB"))
         else:
             txt_store_indices.append(i)
-            txt_inputs.append(chunk["text"])
+            # Strip HTML tags from table chunks before embedding so MiniLM encodes
+            # cell values rather than <table><tr><td id="..."> noise. Text-only
+            # chunks contain plain markdown and need no stripping.
+            raw = chunk["text"]
+            txt_inputs.append(_strip_html(raw) if chunk["chunk_type"] == "table" else raw)
 
     # Encode image chunks with CLIP image encoder (512-dim).
     if img_pil_inputs:
@@ -1006,7 +1026,7 @@ def similarity_search(vs: dict, question: str, top_k: int = 5) -> list[dict]:
     Stage 1 — Reciprocal Rank Fusion (RRF):
       CLIP text encoder searches image chunks; MiniLM searches text chunks.
       RRF merges by rank position (not raw cosine score, which is incomparable
-      across encoders). Fetches RERANK_CANDIDATES (20) candidates — a wider net
+      across encoders). Fetches RERANK_CANDIDATES (40) candidates — a wider net
       for the reranker to work from.
 
     Stage 2 — Cross-encoder reranking:
