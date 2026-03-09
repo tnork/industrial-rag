@@ -24,7 +24,9 @@ GE Connect Technical Assistant — a retrieval-augmented generation system for q
 | **Vector store** | NumPy + JSON (local files) | `embeddings.npy` (512-dim CLIP) + `text_embeddings.npy` (384-dim MiniLM) + `documents.json` |
 | **Image embedding** | `sentence-transformers/clip-ViT-B-32` | 512-dim; image chunks encoded by visual content via CLIP image encoder |
 | **Text embedding** | `sentence-transformers/all-MiniLM-L6-v2` | 384-dim; text chunks + query encoded by MiniLM for dense semantic retrieval |
-| **LLM** | Anthropic `claude-opus-4-6` | Streaming + vision via `anthropic` SDK directly |
+| **Retrieval Stage 1** | Reciprocal Rank Fusion (RRF, k=60) | Merges CLIP + MiniLM ranked lists by rank position; top 20 candidates forwarded to Stage 2 |
+| **Retrieval Stage 2** | `cross-encoder/ms-marco-MiniLM-L6-v2` | Reranks top 20 by scoring (query, chunk_text) jointly; ADE confidence = 15% soft boost; returns top 5 |
+| **LLM** | Anthropic `claude-opus-4-6` | Streaming + adaptive vision (0–2 images per request) via `anthropic` SDK directly |
 | **Document parsing** | LandingAI ADE (`dpt-2-latest`) | Requires `VISION_AGENT_API_KEY` |
 | **PDF rendering** | PyMuPDF (`fitz`) | Renders pages for chunk image cropping |
 | **Image cropping** | Pillow (`PIL`) | Saves PNG crops of each chunk bbox |

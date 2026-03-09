@@ -15,7 +15,7 @@ short_description: Visually-grounded RAG for GE Connect manuals
 A multimodal RAG assistant for GE Connect Series product manuals. Ask a question in plain English — get a precise, sourced answer with the exact page region it came from.
 
 - **The problem** — Technical docs (installation manuals, service guides, wiring schematics, spec sheets) are dense, visually complex, and spread across multiple revision versions. Finding a spec or error code means page-flipping through hundreds of pages, being limited to keyword search, or LLM knowledge without grounding for accuracy.
-- **The solution** — LandingAI ADE API ouput for markdown, JSON bounding box locations, and confidence scores + dual-encoder retrieval for text and image + Claude vision. Surfaces the right information, reads diagrams the way a human would, finds the right information, and cites the exact source. No hallucinations, no missing context.
+- **The solution** — LandingAI ADE API ouput for markdown, JSON bounding box locations, and confidence scores + cross-encoder reads (query + chunk text together)  + Claude vision. Surfaces the right information, reads diagrams the way a human would, finds the right information, and cites the exact source. No hallucinations, no missing context.
 - **The broader pattern** — the same architecture applies anywhere high-stakes decisions depend on visually complex documents: financial services, healthcare, manufacturing, logistics. In those domains, text-only RAG isn't just incomplete — stripping the visual layer from a wiring diagram or dosage table can produce confidently wrong answers.
 
 ## What it does
@@ -23,7 +23,7 @@ A multimodal RAG assistant for GE Connect Series product manuals. Ask a question
 - Answers technical questions about GE Connect Series heat pumps and related equipment
 - Retrieves relevant context from 10 GE Connect Series PDFs (service manuals, installation manuals, spec sheets, specification guide, submittal docs) spanning Aug 2020 – Nov 2022
 - **Parsed with LandingAI Agentic Document Extraction (ADE)** — extracts figures, tables, and text blocks accurately with precise bounding boxes and confidence scores, enabling the RAG system to retrieve the exact page region that answers a question
-- **Dual-encoder retrieval** — image chunks embedded with `clip-ViT-B-32` (visual content) and text-only chunks embedded with `all-MiniLM-L6-v2` (semantic search); both ranked lists merged per query using Reciprocal Rank Fusion (RRF) so neither encoder dominates
+- **Two-stage retrieval** — image chunks embedded with `clip-ViT-B-32` (visual content) and text-only chunks embedded with `all-MiniLM-L6-v2` (semantic search); both ranked lists merged per query using Reciprocal Rank Fusion (RRF, Stage 1), then the top 20 candidates are reranked by a `cross-encoder/ms-marco-MiniLM-L6-v2` model (Stage 2) for a significant precision boost
 - **Adaptive vision** — sends 0–2 images to Claude per request: images are included only when top-ranked results are image chunks that meet a minimum similarity threshold; purely textual queries incur no vision token cost
 - Streams answers via Claude Opus 4.6 with source citations; each source card shows the chunk image and a text snippet
 - Includes an Original Doc Viewer for browsing source PDFs (opens in new tab)
@@ -52,7 +52,8 @@ A multimodal RAG assistant for GE Connect Series product manuals. Ask a question
 | LLM | Anthropic `claude-opus-4-6` (streaming + adaptive vision: 0–2 images per request) |
 | Text embedding | `sentence-transformers/all-MiniLM-L6-v2` (384-dim, dense text retrieval, local) |
 | Image embedding | `sentence-transformers/clip-ViT-B-32` image encoder (512-dim, visual content, local) |
-| Retrieval fusion | Reciprocal Rank Fusion (RRF, k=60) — merges CLIP and MiniLM ranked lists by rank position, not raw cosine score (scores are incomparable across encoders) |
+| Retrieval — Stage 1 | Reciprocal Rank Fusion (RRF, k=60) — merges CLIP and MiniLM ranked lists by rank position, not raw cosine score (scores are incomparable across encoders); top 20 candidates forwarded to Stage 2 |
+| Retrieval — Stage 2 | `cross-encoder/ms-marco-MiniLM-L6-v2` reranker — scores `(query, chunk_text)` pairs jointly for precision; ADE confidence used as a 15% soft boost; final top 5 returned |
 | Vector store | NumPy flat files (`embeddings.npy` + `text_embeddings.npy`) + cosine similarity |
 | Document parsing | LandingAI ADE `dpt-2-latest` (build-time only) |
 | Chunk images | PyMuPDF page render → Pillow bbox crop → PNG for CLIP + Claude vision |
@@ -98,7 +99,7 @@ This is a demo scoped to GE Connect Series. The same architecture generalizes to
 
 - **Vector store** — replace NumPy flat-file scan with a proper vector database (pgvector, Pinecone, Weaviate, Qdrant). Full cosine scan over 2,131 chunks is fine locally; it won't scale.
 - **Embedding** — consider a domain-adapted or higher-capacity model. MiniLM-L6 is fast and surprisingly capable, but larger models (e.g. `bge-large`, `text-embedding-3-large`) close the gap on technical/domain-specific retrieval.
-- **Reranking** — add a cross-encoder reranker (e.g. `ms-marco-MiniLM-L6-reranking`) on top of the dual-encoder retrieval for a significant precision boost.
+- **Reranking** — cross-encoder reranking is already implemented; upgrade to a larger reranker (e.g. `ms-marco-MiniLM-L12-v2` or a domain-adapted model) for further gains.
 - **Auth & rate limiting** — the web UI has no authentication or per-user quota. Add both before exposing publicly.
 - **Observability** — no tracing, no query logging, no retrieval quality metrics. Add LangSmith, Langfuse, or similar.
 - **Multi-tenancy / access control** — a single shared index is fine for a demo; a real product would scope retrieval per user or per organization.

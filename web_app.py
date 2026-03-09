@@ -35,20 +35,27 @@ Embedding strategy (dual-encoder):
         → embedded with MiniLM text encoder (all-MiniLM-L6-v2, 384-dim)
         → optimized for dense semantic passage retrieval
 
-Retrieval — Reciprocal Rank Fusion (RRF, k=60):
+Retrieval — two-stage pipeline:
+  Stage 1 — Reciprocal Rank Fusion (RRF, k=60):
     At query time the question is encoded by BOTH encoders. Each returns a ranked
     list; RRF merges them by rank position (1/(k+rank+1)) rather than raw cosine
     score. This is necessary because MiniLM text-to-text scores (0.4–0.8) are
     systematically higher than CLIP text-to-image scores (0.1–0.35) — raw-score
     merging would cause text-only chunks to dominate every result set. RRF gives
-    each encoder equal weight. The original cosine score is preserved for UI display.
+    each encoder equal weight. Top RERANK_CANDIDATES (20) forwarded to Stage 2.
+    The original cosine score is preserved for UI display.
+  Stage 2 — Cross-encoder reranking (cross-encoder/ms-marco-MiniLM-L6-v2):
+    Scores (query, chunk_text) pairs jointly in a single forward pass — far more
+    accurate than bi-encoder cosine proximity for final ranking. ADE confidence
+    is applied as a 15% soft multiplicative boost (CONF_WEIGHT=0.15). Final top 5
+    returned to Claude and the web UI.
 
 Claude vision (adaptive):
-    - 0 or 1 image sent per request (never more)
-    - An image is sent only if the top-ranked result is an image chunk AND its
-      cosine similarity meets CLAUDE_IMG_MIN_SIM (0.20)
-    - Visual questions (diagram ranked #1) get 1 image; text/lookup questions
-      (text passage ranked #1) get 0 images
+    - 0–2 images sent per request (MAX_CLAUDE_IMGS = 2)
+    - An image is included for each hit whose cosine similarity meets
+      CLAUDE_IMG_MIN_SIM (0.20) and has a matching chunk image, up to the cap
+    - Visual questions (diagram ranked #1) get images; text/lookup questions
+      (text passages ranked top) get 0 images, eliminating vision token cost
     - claude-opus-4-6 reads diagrams visually; answers streamed via SSE
 
 Environment:
