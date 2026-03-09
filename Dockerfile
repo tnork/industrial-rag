@@ -51,7 +51,7 @@ EXPOSE 7860
 CMD ["gunicorn", \
      "--worker-class", "gthread", \
      "--workers", "1", \
-     "--threads", "4", \
+     "--threads", "2", \
      "--timeout", "300", \
      "--bind", "0.0.0.0:7860", \
      "app:application"]

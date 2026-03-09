@@ -8,11 +8,19 @@ On cold start:
   4. Expose Flask app as `application` for gunicorn
 
 Run with:
-  gunicorn --worker-class gthread --threads 4 --timeout 300 --bind 0.0.0.0:7860 app:application
+  gunicorn --worker-class gthread --threads 2 --timeout 300 --bind 0.0.0.0:7860 app:application
 """
 
+import torch
 import zipfile
 from pathlib import Path
+
+# Limit PyTorch internal thread pool to prevent CPU/memory spikes under load.
+# Default is os.cpu_count() which on HF free tier (2 vCPU) spawns 2 threads per
+# operation — with 2 gunicorn threads each calling the cross-encoder concurrently
+# this would fork 8 OS threads all competing for the same 2 cores.
+torch.set_num_threads(2)
+torch.set_num_interop_threads(1)
 
 # ── Auto-extract chunk images if bundled as zip ────────────────────────────
 _zip = Path("chunk_images.zip")
