@@ -948,13 +948,16 @@ def build_vector_store(force: bool = False):
     _delete_orphaned_images(removed_ids)
 
     # Separate deduplicated chunks into image and text groups.
-    # - Image chunks: embedded by visual content via CLIP image encoder.
-    # - Text chunks:  embedded by semantic content via MiniLM.
+    # - Image chunks (figure, logo, scan_code, etc.): CLIP image encoder (512-dim).
+    # - Table chunks: MiniLM text encoder using ADE HTML text, even if a PNG exists.
+    #   Tables are text-dense; CLIP visual similarity is poor for tabular content.
+    #   Their PNG is still indexed in image_map for UI preview and lightbox.
+    # - Text chunks (no PNG): MiniLM text encoder (384-dim).
     img_store_indices, txt_store_indices = [], []
     img_pil_inputs,    txt_inputs        = [], []
     for i, chunk in enumerate(chunks):
         img_path = image_map.get(chunk["id"])
-        if img_path and img_path.exists():
+        if img_path and img_path.exists() and chunk["chunk_type"] != "table":
             img_store_indices.append(i)
             img_pil_inputs.append(Image.open(img_path).convert("RGB"))
         else:
@@ -1013,7 +1016,13 @@ def similarity_search(vs: dict, question: str, top_k: int = 5) -> list[dict]:
       (CONF_WEIGHT=0.15) to prefer better-parsed chunks when scores are close.
       Figures (confidence=None) receive a neutral factor of 1.0.
 
-    The returned `similarity` field is the original cosine score (for the % badge).
+    Both scores are returned per hit:
+      - `rerank_score`: the Stage 2 cross-encoder score (used for final ranking and
+        the UI relevance % badge — normalized to batch max so the top chunk = 100%).
+        This is the honest relevance signal; cosine scores are incomparable across
+        CLIP and MiniLM encoders and would be misleading as a display metric.
+      - `similarity`: the raw Stage 1 cosine score, preserved for the Claude image
+        selection threshold (CLAUDE_IMG_MIN_SIM) which needs a stable 0–1 value.
     """
     import numpy as np
 
@@ -1223,12 +1232,17 @@ def make_flask_app(vs, image_map):
                 hits    = similarity_search(vs, question)
                 context = _context_from_hits(hits)
 
+                # Normalize rerank scores to [0, 1] relative to the top hit so the
+                # UI badge shows "% of best match" rather than a raw logit. cosine
+                # similarity is kept separately for the Claude image threshold.
+                top_rerank = max(h.get("rerank_score", 0) for h in hits) or 1.0
                 sources = []
                 for h in hits:
                     img     = image_map.get(h["id"])
                     img_url = f"/chunk_images/{img.relative_to(CHUNK_IMAGES)}" if img else None
                     sources.append({
-                        "similarity": round(h["similarity"], 3),
+                        "similarity":    round(h["similarity"], 3),
+                        "rerank_score":  round(h.get("rerank_score", 0) / top_rerank, 3),
                         "chunk_type": h["chunk_type"],
                         "page":       h["page"] + 1,
                         "text":       _display_text(h["text"]),

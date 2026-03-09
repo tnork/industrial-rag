@@ -1003,7 +1003,7 @@
     lbImgs = sources.filter(s => s.image_url).map(s => ({ url: s.image_url, page: s.page, doc: s.doc }));
 
     sources.forEach(s => {
-      const pct = Math.round(s.similarity * 100);
+      const pct = Math.round((s.rerank_score ?? s.similarity) * 100);
       const card = document.createElement("div");
 
       card.className = "sc";

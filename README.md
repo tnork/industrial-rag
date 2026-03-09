@@ -23,7 +23,7 @@ A multimodal RAG assistant for GE Connect Series product manuals. Ask a question
 - Answers technical questions about GE Connect Series heat pumps and related equipment
 - Retrieves relevant context from 10 GE Connect Series PDFs (service manuals, installation manuals, spec sheets, specification guide, submittal docs) spanning Aug 2020 – Nov 2022
 - **Parsed with LandingAI Agentic Document Extraction (ADE)** — extracts figures, tables, and text blocks accurately with precise bounding boxes and confidence scores, enabling the RAG system to retrieve the exact page region that answers a question
-- **Two-stage retrieval** — image chunks embedded with `clip-ViT-B-32` (visual content) and text-only chunks embedded with `all-MiniLM-L6-v2` (semantic search); both ranked lists merged per query using Reciprocal Rank Fusion (RRF, Stage 1), then the top 20 candidates are reranked by a `cross-encoder/ms-marco-MiniLM-L6-v2` model (Stage 2) for a significant precision boost
+- **Two-stage retrieval** — figure/logo chunks embedded with `clip-ViT-B-32` (visual content); table and text chunks embedded with `all-MiniLM-L6-v2` (semantic search using ADE-extracted text); both ranked lists merged per query using Reciprocal Rank Fusion (RRF, Stage 1), then the top 20 candidates are reranked by a `cross-encoder/ms-marco-MiniLM-L6-v2` model (Stage 2) for a significant precision boost
 - **Adaptive vision** — sends 0–2 images to Claude per request: images are included only when top-ranked results are image chunks that meet a minimum similarity threshold; purely textual queries incur no vision token cost
 - Streams answers via Claude Opus 4.6 with source citations; each source card shows the chunk image and a text snippet
 - Includes an Original Doc Viewer for browsing source PDFs (opens in new tab)
@@ -43,17 +43,17 @@ A multimodal RAG assistant for GE Connect Series product manuals. Ask a question
 | GE Connect Series Submittal (May 2021) | Submittal / specs |
 | GE Connect Spec Sheet (Aug 2020) | Spec sheet |
 
-**~2,131 unique chunks** after deduplication across overlapping manual versions (2,112 image chunks + 19 text-only chunks).
+**2,029 unique chunks** after deduplication across overlapping manual versions (1,532 figure/logo chunks encoded by CLIP + 497 table/text chunks encoded by MiniLM).
 
 ## Stack
 
 | Layer | Technology |
 |---|---|
 | LLM | Anthropic `claude-opus-4-6` (streaming + adaptive vision: 0–2 images per request) |
-| Text embedding | `sentence-transformers/all-MiniLM-L6-v2` (384-dim, dense text retrieval, local) |
-| Image embedding | `sentence-transformers/clip-ViT-B-32` image encoder (512-dim, visual content, local) |
+| Text embedding | `sentence-transformers/all-MiniLM-L6-v2` (384-dim) — table chunks + text-only chunks, using ADE-extracted text |
+| Image embedding | `sentence-transformers/clip-ViT-B-32` image encoder (512-dim) — figure/logo chunks only, encoded by visual content |
 | Retrieval — Stage 1 | Reciprocal Rank Fusion (RRF, k=60) — merges CLIP and MiniLM ranked lists by rank position, not raw cosine score (scores are incomparable across encoders); top 20 candidates forwarded to Stage 2 |
-| Retrieval — Stage 2 | `cross-encoder/ms-marco-MiniLM-L6-v2` reranker — scores `(query, chunk_text)` pairs jointly for precision; ADE confidence used as a 15% soft boost; final top 5 returned |
+| Retrieval — Stage 2 | `cross-encoder/ms-marco-MiniLM-L6-v2` reranker — scores `(query, chunk_text)` pairs jointly for precision; ADE confidence used as a 15% soft boost; final top 5 returned; rerank score (normalized to batch max) shown as the UI relevance % badge |
 | Vector store | NumPy flat files (`embeddings.npy` + `text_embeddings.npy`) + cosine similarity |
 | Document parsing | LandingAI ADE `dpt-2-latest` (build-time only) |
 | Chunk images | PyMuPDF page render → Pillow bbox crop → PNG for CLIP + Claude vision |

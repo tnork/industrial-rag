@@ -12,7 +12,7 @@ The `landingai-ade` skill is installed globally at `~/.claude/skills/landingai-a
 
 GE Connect Technical Assistant — a retrieval-augmented generation system for querying GE Connect Series HVAC product manuals. Parses Connect Series PDFs with LandingAI ADE into grounded image chunks, deduplicates chunks by text content, builds a dual-encoder NumPy vector store, and serves a Flask web UI where Claude Opus 4.6 answers technical questions with source citations and visual chunk previews.
 
-**Current corpus stats:** 10 documents, 2,241 unique chunks (2,048 image + 193 text-only after dedup), 2,067 chunk images
+**Current corpus stats:** 10 documents, 2,029 unique chunks (1,532 figure/logo CLIP + 497 table/text MiniLM after dedup), 4,096 chunk images
 
 ---
 
@@ -22,8 +22,8 @@ GE Connect Technical Assistant — a retrieval-augmented generation system for q
 |---|---|---|
 | **Web framework** | Flask (unversioned) | Port 8080 local / 7860 HF; SSE streaming; vanilla JS/CSS frontend |
 | **Vector store** | NumPy + JSON (local files) | `embeddings.npy` (512-dim CLIP) + `text_embeddings.npy` (384-dim MiniLM) + `documents.json` |
-| **Image embedding** | `sentence-transformers/clip-ViT-B-32` | 512-dim; image chunks encoded by visual content via CLIP image encoder |
-| **Text embedding** | `sentence-transformers/all-MiniLM-L6-v2` | 384-dim; text chunks + query encoded by MiniLM for dense semantic retrieval |
+| **Image embedding** | `sentence-transformers/clip-ViT-B-32` | 512-dim; figure/logo chunks encoded by visual content via CLIP image encoder |
+| **Text embedding** | `sentence-transformers/all-MiniLM-L6-v2` | 384-dim; table chunks + text-only chunks encoded by MiniLM using ADE-extracted text |
 | **Retrieval Stage 1** | Reciprocal Rank Fusion (RRF, k=60) | Merges CLIP + MiniLM ranked lists by rank position; top 20 candidates forwarded to Stage 2 |
 | **Retrieval Stage 2** | `cross-encoder/ms-marco-MiniLM-L6-v2` | Reranks top 20 by scoring (query, chunk_text) jointly; ADE confidence = 15% soft boost; returns top 5 |
 | **LLM** | Anthropic `claude-opus-4-6` | Streaming + adaptive vision (0–2 images per request) via `anthropic` SDK directly |
@@ -135,8 +135,10 @@ All functionality lives in one file with 7 sections:
 1. **Search** — `similarity_search(vs, question)` uses Reciprocal Rank Fusion (RRF, k=60) to merge results from both encoders:
    - CLIP text encoder → ranked image results
    - MiniLM → ranked text results
-   - RRF merges by rank rather than raw score, giving each encoder equal weight (raw cosine scores are incomparable: MiniLM text-to-text is typically 0.4–0.8 while CLIP text-to-image is 0.1–0.35). The original cosine score is kept for UI display only.
-2. **Generate** — `anthropic.Anthropic().messages.stream()` with `claude-opus-4-6`; **0 or 1** image sent per request: an image is included only if the top-ranked result is an image chunk with cosine similarity ≥ `CLAUDE_IMG_MIN_SIM` (0.20). Visual queries get 1 image; text/lookup queries get 0, eliminating vision token cost for those requests.
+   - RRF merges by rank rather than raw score, giving each encoder equal weight (raw cosine scores are incomparable: MiniLM text-to-text is typically 0.4–0.8 while CLIP text-to-image is 0.1–0.35). Top 20 forwarded to Stage 2.
+   - Cross-encoder reranks top 20; ADE confidence = 15% soft boost. Returns top 5.
+   - **UI relevance % badge** = `rerank_score / max(rerank_scores)` — normalized to batch max so top chunk = 100%. This is the honest relevance signal. Raw cosine score is NOT shown (it's incomparable across encoders and would be misleading). Cosine score is kept only for `CLAUDE_IMG_MIN_SIM` image-selection threshold.
+2. **Generate** — `anthropic.Anthropic().messages.stream()` with `claude-opus-4-6`; **0–2** images per request: images included for hits with cosine similarity ≥ `CLAUDE_IMG_MIN_SIM` (0.20) and a matching PNG, up to `MAX_CLAUDE_IMGS=2`.
 3. **Web UI** — Flask on port 8080; `/ask?q=...` streams SSE events (`sources` → `token`... → `done`); image chunk cards show preview + snippet and are clickable (lightbox); text-only cards are non-clickable (`cursor: default`, no hover lift)
 
 ### app.py — HuggingFace Spaces entrypoint
