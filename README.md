@@ -95,7 +95,7 @@ gunicorn --worker-class gthread --threads 4 --timeout 300 --bind 0.0.0.0:7860 ap
 
 ## Production Notes
 
-This is a demo scoped to GE Connect Series. The same architecture generalizes to any document-heavy domain — equipment manufacturers, financial services, healthcare, logistics — wherever dense, visually complex documentation drives high-stakes decisions. A real deployment would change most of the infrastructure:
+This is a demo for any document-heavy domain - equipment manufacturers, financial services, healthcare, logistics - wherever dense, visually complex documentation drives high-stakes decisions. A real deployment would change most of the infrastructure:
 
 - **Vector store** — replace NumPy flat-file scan with a proper vector database (pgvector, Pinecone, Weaviate, Qdrant). Full cosine scan over 2,029 chunks is fine locally; it won't scale.
 - **Embedding** — consider a domain-adapted or higher-capacity model. MiniLM-L6 is fast and surprisingly capable, but larger models (e.g. `bge-large`, `text-embedding-3-large`) close the gap on technical/domain-specific retrieval.
