@@ -810,10 +810,14 @@ def _deduplicate_chunks(chunks: list, vectors) -> tuple:
     keep_idx    = []
     removed_ids = []
     for i, chunk in enumerate(chunks):
-        # Normalize: collapse whitespace and lowercase so near-identical chunks
-        # from different manual revisions (minor wording/spacing differences) are
-        # treated as duplicates. Original text is preserved in the stored chunk.
-        text_key = re.sub(r'\s+', ' ', chunk.get("text", "")).strip().lower()
+        # Normalize: strip markdown formatting, collapse whitespace, and lowercase
+        # so near-identical chunks (different revisions, heading styles, minor
+        # wording differences) are treated as duplicates.
+        # Original text is preserved in the stored chunk — only the key is stripped.
+        raw = chunk.get("text", "")
+        raw = re.sub(r'\*{1,3}', '', raw)          # strip bold/italic markers
+        raw = re.sub(r'^#{1,6}\s*', '', raw, flags=re.MULTILINE)  # strip heading #
+        text_key = re.sub(r'\s+', ' ', raw).strip().lower()
         if text_key not in seen_text:
             seen_text[text_key] = i
             keep_idx.append(i)
@@ -848,9 +852,11 @@ def _build_chunk_image_map() -> dict[str, Path]:
 
 
 def _display_text(text: str, max_len: int = 200) -> str:
-    """Strip ADE image-description markers (<::...::>) from chunk text for UI display."""
-    cleaned = re.sub(r"<::.*?::>", "", text, flags=re.DOTALL).strip()
-    return cleaned[:max_len]
+    """Clean chunk text for UI display: strip ADE markers and markdown formatting."""
+    cleaned = re.sub(r"<::.*?::>", "", text, flags=re.DOTALL)   # ADE image markers
+    cleaned = re.sub(r'\*{1,3}(.*?)\*{1,3}', r'\1', cleaned)    # bold/italic **x**
+    cleaned = re.sub(r'^#{1,6}\s*', '', cleaned, flags=re.MULTILINE)  # headings
+    return cleaned.strip()[:max_len]
 
 
 def _encode_image_for_claude(img_path: Path, max_side: int = CLAUDE_IMG_SIDE) -> str:
