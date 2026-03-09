@@ -29,9 +29,12 @@ SentenceTransformer('all-MiniLM-L6-v2'); \
 SentenceTransformer('clip-ViT-B-32'); \
 print('Both models cached.')"
 
-# Prevent huggingface_hub from making any network calls at runtime
-# (model is already cached in the image layer above)
+# Prevent all HF/transformers network calls at runtime.
+# HF_HUB_OFFLINE covers huggingface_hub; TRANSFORMERS_OFFLINE covers the
+# transformers library that sentence-transformers uses internally for CLIP.
+# Both must be set — either one alone can still trigger DNS lookups.
 ENV HF_HUB_OFFLINE=1
+ENV TRANSFORMERS_OFFLINE=1
 
 # Copy all application files (vector_store, chunk_images.zip, templates, etc.)
 COPY . .
