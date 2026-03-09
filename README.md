@@ -12,11 +12,11 @@ short_description: Visually-grounded RAG for GE Connect manuals
 
 # GE Connect Technical Assistant
 
-A multimodal RAG assistant for GE Connect Series product manuals. Ask a question in plain English — get a precise, sourced answer with the exact page region it came from.
+A multimodal RAG assistant for GE Connect Series product manuals. Ask a question in English to get a precise, visually-grounded answer.
 
-- **The problem** — Technical docs (installation manuals, service guides, wiring schematics, spec sheets) are dense, visually complex, and spread across multiple revision versions. Finding a spec or error code means page-flipping through hundreds of pages, being limited to keyword search, or LLM knowledge without grounding for accuracy.
-- **The solution** — LandingAI ADE API ouput for markdown, JSON bounding box locations, and confidence scores + cross-encoder reads (query + chunk text together)  + Claude vision. Surfaces the right information, reads diagrams the way a human would, finds the right information, and cites the exact source. No hallucinations, no missing context.
-- **The broader pattern** — the same architecture applies anywhere high-stakes decisions depend on visually complex documents: financial services, healthcare, manufacturing, logistics. In those domains, text-only RAG isn't just incomplete — stripping the visual layer from a wiring diagram or dosage table can produce confidently wrong answers.
+- **The problem** — Technical documents are dense, visually complex, and spread across multiple revision versions. Finding a spec or error code means page-flipping through hundreds of pages, being limited to keyword search, or LLM knowledge without grounding for accuracy.
+- **The solution** — LandingAI Agentic Document Extraction (ADE) API output for markdown, JSON bounding box locations, and confidence scores + cross-encoder reads (query + chunk text together) + Claude vision. Surfaces the right information, reads diagrams the way a human would, finds the right information, and cites the exact source. No hallucinations, no missing context.
+- **The broader pattern** — the same capabilities apply anywhere high-stakes decisions depend on visually complex documents: Financial Services, Healthcare, Manufacturing, Logistics, and more. In those domains, text-only RAG isn't just incomplete — stripping the visual layer from a wiring diagram or dosage table can produce confidently wrong answers.
 
 ## What it does
 
