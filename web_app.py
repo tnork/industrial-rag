@@ -1227,6 +1227,59 @@ def make_flask_app(vs, image_map):
             return send_file(full_path)
         return ("Not found", 404)
 
+    @flask_app.route("/page_render")
+    def page_render():
+        """Render a PDF page at 150 DPI with the chunk bbox highlighted.
+
+        Query params: doc (stem), category, page (0-indexed), left/top/right/bottom (normalized 0-1).
+        Returns JSON: {image: <base64 JPEG>}.
+        """
+        import fitz as _fitz, io as _io, base64 as _b64
+        from PIL import Image as _Image, ImageDraw as _Draw
+
+        doc_stem = request.args.get("doc", "")
+        category = request.args.get("category", "connect_series")
+        page     = int(request.args.get("page", 0))
+        left     = float(request.args.get("left",   0))
+        top      = float(request.args.get("top",    0))
+        right    = float(request.args.get("right",  1))
+        bottom   = float(request.args.get("bottom", 1))
+
+        pdf_dir  = INPUT_DIR / category
+        pdf_path = pdf_dir / f"{doc_stem}.pdf"
+        if not pdf_path.exists():
+            for f in pdf_dir.iterdir():
+                if f.suffix.lower() == ".pdf" and f.stem == doc_stem:
+                    pdf_path = f
+                    break
+            else:
+                return ({"error": "PDF not found"}, 404)
+
+        try:
+            doc_obj = _fitz.open(pdf_path)
+            if page >= len(doc_obj):
+                return ({"error": "Page out of range"}, 400)
+            scale = 150 / 72  # 150 DPI
+            pix   = doc_obj[page].get_pixmap(matrix=_fitz.Matrix(scale, scale))
+            img   = _Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+            doc_obj.close()
+
+            w, h = img.size
+            x1, y1 = int(left * w), int(top * h)
+            x2, y2 = int(right * w), int(bottom * h)
+
+            overlay = _Image.new("RGBA", img.size, (0, 0, 0, 0))
+            draw    = _Draw.Draw(overlay)
+            draw.rectangle([x1, y1, x2, y2], fill=(255, 200, 0, 55))
+            draw.rectangle([x1, y1, x2, y2], outline=(255, 130, 0, 230), width=3)
+            img = _Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB")
+
+            buf = _io.BytesIO()
+            img.save(buf, format="JPEG", quality=85)
+            return {"image": _b64.b64encode(buf.getvalue()).decode()}
+        except Exception as e:
+            return ({"error": str(e)}, 500)
+
     @flask_app.route("/readme")
     def readme():
         content = (BASE_DIR / "README.md").read_text(encoding="utf-8")
@@ -1262,11 +1315,13 @@ def make_flask_app(vs, image_map):
                     img     = image_map.get(h["id"])
                     img_url = f"/chunk_images/{img.relative_to(CHUNK_IMAGES)}" if img else None
                     sources.append({
+                        "id":         h.get("id", ""),
                         "similarity":    round(h["similarity"], 3),
                         "rerank_score":  round(h.get("rerank_score", 0), 4),
                         "chunk_type": h["chunk_type"],
                         "page":       h["page"] + 1,
                         "text":       _display_text(h["text"]),
+                        "raw_text":   re.sub(r"<::(.*?)::>", r"\1", h["text"], flags=re.DOTALL).strip(),
                         "image_url":  img_url,
                         "doc":        h["_doc_stem"],
                         "category":   h["_category"],

@@ -226,7 +226,7 @@
     .welcome {
       flex: 1; display: flex; flex-direction: column;
       align-items: center; justify-content: center;
-      gap: 5px; padding: 6px 32px 10px; text-align: center;
+      gap: 7px; padding: 6px 32px 10px; text-align: center;
     }
     .w-ring {
       width: 52px; height: 52px; border-radius: 15px;
@@ -249,10 +249,10 @@
       border-radius: 14px; padding: 10px 12px;
       max-width: 780px; width: 100%; margin-top: 10px;
     }
-    .chips { display: grid; grid-template-columns: 1fr 1fr; column-gap: 8px; row-gap: 10px; }
+    .chips { display: grid; grid-template-columns: 1fr 1fr; column-gap: 8px; row-gap: 14px; }
 
     .chip {
-      padding: 12px 16px;
+      padding: 14px 16px;
       background: var(--bg); border: 1.5px solid var(--border);
       border-radius: 10px; font-size: 14px; font-weight: 600;
       color: var(--head); cursor: pointer; box-shadow: var(--sh-sm);
@@ -549,22 +549,36 @@
     .dv-pdf-view { display: flex; flex-direction: column; }
     .dv-iframe { flex: 1; border: none; width: 100%; }
 
-    /* ── Lightbox ─────────────────────────────────────────────────────────── */
-    .lb { display: none; position: fixed; inset: 0; z-index: 9999; background: rgba(5,62,104,0.80); backdrop-filter: blur(6px); align-items: center; justify-content: center; cursor: zoom-out; }
-    .lb.open { display: flex; animation: fi 0.15s ease; }
+    /* ── Split Lightbox ────────────────────────────────────────────────────── */
     @keyframes fi { from{opacity:0} to{opacity:1} }
-    .lb img { max-width: 88vw; max-height: 88vh; border-radius: 10px; box-shadow: 0 24px 80px rgba(0,0,0,0.35); }
-    .lb-close { position: fixed; top: 20px; right: 24px; width: 38px; height: 38px; border-radius: 50%; background: rgba(255,255,255,0.18); border: none; color: white; font-size: 22px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.15s; }
-    .lb-close:hover { background: rgba(255,255,255,0.3); }
-    .lb-nav { position: fixed; top: 50%; transform: translateY(-50%); width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,0.18); border: none; color: white; font-size: 22px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.15s; z-index: 10000; }
-    .lb-nav:hover { background: rgba(255,255,255,0.35); }
-    .lb-nav:disabled { opacity: 0.25; cursor: default; }
-    .lb-prev { left: 20px; }
-    .lb-next { right: 20px; }
-    .lb-counter { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); color: rgba(255,255,255,0.7); font-size: 13px; font-family: var(--font); pointer-events: none; }
-    .lb-info { position: fixed; bottom: 44px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 4px; pointer-events: none; background: rgba(0,0,0,0.45); border-radius: 16px; padding: 6px 16px 7px; backdrop-filter: blur(6px); }
-    .lb-doc-name { color: rgba(255,255,255,0.92); font-size: 12px; font-family: var(--font); font-weight: 600; max-width: 60vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; }
-    .lb-page { color: rgba(255,255,255,0.7); font-size: 10.5px; font-family: var(--font); font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; white-space: nowrap; }
+    .slb { display: none; position: fixed; inset: 0; z-index: 9999; flex-direction: column; background: rgba(5,22,50,0.93); backdrop-filter: blur(8px); }
+    .slb.open { display: flex; animation: fi 0.15s ease; }
+    .slb-header { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid rgba(255,255,255,0.11); background: rgba(0,0,0,0.28); flex-shrink: 0; }
+    .slb-nav-grp { display: flex; align-items: center; gap: 6px; }
+    .slb-btn { width: 30px; height: 30px; border-radius: 50%; background: rgba(255,255,255,0.14); border: none; color: white; font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.15s; flex-shrink: 0; }
+    .slb-btn:hover { background: rgba(255,255,255,0.26); }
+    .slb-btn:disabled { opacity: 0.22; cursor: default; }
+    .slb-counter { color: rgba(255,255,255,0.6); font-size: 12px; min-width: 38px; text-align: center; font-family: var(--font); }
+    .slb-title { flex: 1; color: rgba(255,255,255,0.88); font-size: 13px; font-weight: 600; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font); }
+    .slb-body { flex: 1; display: flex; overflow: hidden; min-height: 0; }
+    .slb-left { flex: 6; overflow-y: auto; padding: 20px; display: flex; align-items: flex-start; justify-content: center; border-right: 1px solid rgba(255,255,255,0.09); background: rgba(255,255,255,0.03); }
+    .slb-left img { max-width: 100%; border-radius: 8px; box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
+    .slb-right { flex: 4; overflow-y: auto; padding: 18px 22px; background: var(--bg); display: flex; flex-direction: column; gap: 10px; }
+    .slb-right-label { font-size: 10px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted); }
+    .slb-md { font-size: 13.5px; line-height: 1.65; color: var(--body); }
+    .slb-md h1,.slb-md h2 { font-size: 15px; font-weight: 700; color: var(--head); margin: 14px 0 6px; }
+    .slb-md h3,.slb-md h4 { font-size: 13.5px; font-weight: 700; color: var(--head); margin: 10px 0 4px; }
+    .slb-md p { margin: 0 0 10px; }
+    .slb-md ul,.slb-md ol { padding-left: 18px; margin: 0 0 10px; }
+    .slb-md li { margin-bottom: 3px; }
+    .slb-md code { background: var(--bg-mid); border-radius: 4px; padding: 1px 5px; font-size: 12.5px; }
+    .slb-md pre { background: var(--bg-mid); border-radius: 6px; padding: 10px 12px; overflow-x: auto; font-size: 12.5px; margin: 8px 0; }
+    .slb-md table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 12px; }
+    .slb-md th,.slb-md td { border: 1px solid var(--border); padding: 5px 8px; text-align: left; }
+    .slb-md th { background: var(--bg-mid); font-weight: 600; color: var(--head); }
+    .slb-md tr:nth-child(even) td { background: var(--bg-mid); }
+    .slb-table-wrap { overflow-x: auto; }
+    .slb-load { color: rgba(255,255,255,0.45); font-size: 13px; text-align: center; padding: 40px 20px; font-family: var(--font); }
 
     /* ── Mobile-only elements (hidden on desktop) ─────────────────────── */
     .sources-toggle-btn {
@@ -728,10 +742,9 @@
           <div class="chips-wrap">
           <div class="chips">
             <button class="chip" onclick="sendChip(this)">What are the correct SA2-1 dip switch positions for 36K on the AUH2436ZGDA, and how do I set SA2-2 to Strong Defrost?</button>
-            <button class="chip" onclick="sendChip(this)">What is the max length of piping I can run for a UUY48ZGDAA indoor unit?</button>
+            <button class="chip" onclick="sendChip(this)">What is the blower performance for UUY24ZGDAB at level 2?</button>
             <button class="chip" onclick="sendChip(this)">What wiring configuration is required between the GE Connect indoor and outdoor units, including terminal designations?</button>
             <button class="chip" onclick="sendChip(this)">After replacing a compressor on a outdoor unit, what are the steps and checks needed to bring the system back to fully operational?</button>
-            <button class="chip" onclick="sendChip(this)" style="grid-column: 1 / -1; max-width: calc(50% - 4px); margin: 0 auto;">What is the blower performance for UUY24ZGDAB at level 2?</button>
           </div>
           </div>
         </div>
@@ -815,16 +828,23 @@
 </div>
 
 <!-- Lightbox -->
-<div class="lb" id="lb" onclick="closeLb()">
-  <button class="lb-close" onclick="closeLb()">&times;</button>
-  <button class="lb-nav lb-prev" id="lb-prev" onclick="event.stopPropagation();lbNav(-1)">&#8592;</button>
-  <img id="lb-img" src="" alt="" onclick="event.stopPropagation()"/>
-  <button class="lb-nav lb-next" id="lb-next" onclick="event.stopPropagation();lbNav(1)">&#8594;</button>
-  <div class="lb-info" onclick="event.stopPropagation()">
-    <span class="lb-doc-name" id="lb-doc-name"></span>
-    <span class="lb-page" id="lb-page"></span>
+<div class="slb" id="slb">
+  <div class="slb-header">
+    <div class="slb-nav-grp">
+      <button class="slb-btn" id="slb-prev" onclick="slbNav(-1)">&#8592;</button>
+      <span class="slb-counter" id="slb-counter"></span>
+      <button class="slb-btn" id="slb-next" onclick="slbNav(1)">&#8594;</button>
+    </div>
+    <div class="slb-title" id="slb-title"></div>
+    <button class="slb-btn" onclick="closeSlb()" style="font-size:19px;margin-left:auto">&times;</button>
   </div>
-  <span class="lb-counter" id="lb-counter"></span>
+  <div class="slb-body">
+    <div class="slb-left" id="slb-left"><div class="slb-load">Loading…</div></div>
+    <div class="slb-right">
+      <span class="slb-right-label">Parsed Chunk Markdown</span>
+      <div class="slb-md" id="slb-md"></div>
+    </div>
+  </div>
 </div>
 
 <!-- README Modal -->
@@ -869,10 +889,9 @@
       <div class="chips-wrap">
       <div class="chips">
         <button class="chip" onclick="sendChip(this)">What are the correct SA2-1 dip switch positions for 36K on the AUH2436ZGDA, and how do I set SA2-2 to Strong Defrost?</button>
-        <button class="chip" onclick="sendChip(this)">What is the max length of piping I can run for a UUY48ZGDAA indoor unit?</button>
+        <button class="chip" onclick="sendChip(this)">What is the blower performance for UUY24ZGDAB at level 2?</button>
         <button class="chip" onclick="sendChip(this)">What wiring configuration is required between the GE Connect indoor and outdoor units, including terminal designations?</button>
         <button class="chip" onclick="sendChip(this)">After replacing a compressor on a outdoor unit, what are the steps and checks needed to bring the system back to fully operational?</button>
-        <button class="chip" onclick="sendChip(this)" style="grid-column: 1 / -1; max-width: calc(50% - 4px); margin: 0 auto;">What is the blower performance for UUY24ZGDAB at level 2?</button>
       </div>
       </div>
     </div>`;
@@ -1002,9 +1021,7 @@
     const tc = document.getElementById("sources-toggle-count");
     if (tc) tc.textContent = `(${sources.length})`;
 
-    lbImgs = sources.filter(s => s.image_url).map(s => ({ url: s.image_url, page: s.page, doc: s.doc }));
-
-    sources.forEach(s => {
+    sources.forEach((s, idx) => {
       // Apply sigmoid to raw cross-encoder logit → honest 0–100% relevance score.
       // Division-based normalization breaks when all logits are negative.
       const sigmoid = x => 1 / (1 + Math.exp(-x));
@@ -1030,48 +1047,89 @@
         </div>`;
 
       list.appendChild(card);
-      if (s.image_url) {
-        const imgUrl = s.image_url;
-        card.classList.add("sc-clickable");
-        card.addEventListener("click", () => openLb(imgUrl, lbImgs));
-      }
+      card.classList.add("sc-clickable");
+      card.addEventListener("click", () => openSlb(idx, sources));
       requestAnimationFrame(() => setTimeout(() => {
         card.querySelector(".sim-fill").style.width = pct + "%";
       }, 60));
     });
   }
 
-  let lbImgs = [], lbList = [], lbIdx = 0;
-  function openLb(src, list) {
-    lbList = list && list.length ? list : [{ url: src, page: null, doc: "" }];
-    lbIdx = lbList.findIndex(item => item.url === src);
-    if (lbIdx < 0) lbIdx = 0;
-    lbShow();
-    document.getElementById("lb").classList.add("open");
+  let slbSources = [], slbIdx = 0;
+  function openSlb(idx, sources) {
+    slbSources = sources;
+    slbIdx = idx;
+    document.getElementById("slb").classList.add("open");
+    slbRender();
   }
-  function lbShow() {
-    const item = lbList[lbIdx];
-    document.getElementById("lb-img").src = item.url;
-    document.getElementById("lb-prev").disabled = lbIdx === 0;
-    document.getElementById("lb-next").disabled = lbIdx === lbList.length - 1;
-    document.getElementById("lb-counter").textContent = lbList.length > 1 ? `${lbIdx + 1} / ${lbList.length}` : "";
-    document.getElementById("lb-page").textContent = item.page != null ? `Page ${item.page}` : "";
-    document.getElementById("lb-doc-name").textContent = item.doc || "";
+  async function slbRender() {
+    const s = slbSources[slbIdx];
+    document.getElementById("slb-counter").textContent = `${slbIdx + 1} / ${slbSources.length}`;
+    document.getElementById("slb-title").textContent = `${s.doc || ''} — p. ${s.page}`;
+    document.getElementById("slb-prev").disabled = slbIdx === 0;
+    document.getElementById("slb-next").disabled = slbIdx === slbSources.length - 1;
+
+    // Left panel: full PDF page with highlighted bbox
+    const leftEl = document.getElementById("slb-left");
+    leftEl.innerHTML = '<div class="slb-load">Rendering page…</div>';
+    const b = s.bbox || {};
+    if (s.doc && s.page) {
+      const p = new URLSearchParams({
+        doc: s.doc, category: s.category || 'connect_series',
+        page: s.page - 1,
+        left: b.left || 0, top: b.top || 0, right: b.right || 1, bottom: b.bottom || 1
+      });
+      try {
+        const r = await fetch('/page_render?' + p);
+        if (r.ok) {
+          const d = await r.json();
+          leftEl.innerHTML = `<img src="data:image/jpeg;base64,${d.image}" alt="Page ${s.page}"/>`;
+        } else {
+          leftEl.innerHTML = s.image_url ? `<img src="${s.image_url}" style="max-width:100%;border-radius:8px"/>` : '<div class="slb-load">Page not available</div>';
+        }
+      } catch (_) {
+        leftEl.innerHTML = s.image_url ? `<img src="${s.image_url}" style="max-width:100%;border-radius:8px"/>` : '<div class="slb-load">Page not available</div>';
+      }
+    } else {
+      leftEl.innerHTML = s.image_url ? `<img src="${s.image_url}" style="max-width:100%;border-radius:8px"/>` : '<div class="slb-load">No page data</div>';
+    }
+
+    // Right panel: markdown / table text
+    document.getElementById("slb-md").innerHTML = renderChunkText(s.raw_text || s.text || '', s.chunk_type);
   }
-  function lbNav(dir) {
-    lbIdx = Math.max(0, Math.min(lbList.length - 1, lbIdx + dir));
-    lbShow();
+  function slbNav(dir) {
+    slbIdx = Math.max(0, Math.min(slbSources.length - 1, slbIdx + dir));
+    slbRender();
   }
-  function closeLb() { document.getElementById("lb").classList.remove("open"); }
+  function closeSlb() { document.getElementById("slb").classList.remove("open"); }
+
+  function renderChunkText(rawText, chunkType) {
+    if (!rawText) return '<p style="color:var(--muted)">No content available.</p>';
+    const t = rawText.replace(/<::([\s\S]*?)::>/g, '$1').trim();
+    // HTML table: sanitize and render table markup directly
+    if (/<table/i.test(t)) {
+      const safe = t
+        .replace(/<(?!\/?(?:table|thead|tbody|tr|th|td|caption|colgroup|col)\b)[^>]+>/gi, ' ')
+        .replace(/\s+id="[^"]*"/g, '')
+        .replace(/\s+style="[^"]*"/g, '');
+      return '<div class="slb-table-wrap">' + safe + '</div>';
+    }
+    // Markdown: use marked.js (already loaded in <head>)
+    try {
+      return typeof marked !== 'undefined' ? marked.parse(t, { gfm: true, breaks: false }) : '<pre>' + esc(t) + '</pre>';
+    } catch (_) {
+      return '<pre>' + esc(t) + '</pre>';
+    }
+  }
   document.addEventListener("keydown", e => {
     if (document.getElementById("readme-overlay").classList.contains("open")) {
       if (e.key === "Escape") closeReadme();
       return;
     }
-    if (!document.getElementById("lb").classList.contains("open")) return;
-    if (e.key === "Escape") closeLb();
-    if (e.key === "ArrowLeft") lbNav(-1);
-    if (e.key === "ArrowRight") lbNav(1);
+    if (!document.getElementById("slb").classList.contains("open")) return;
+    if (e.key === "Escape") closeSlb();
+    if (e.key === "ArrowLeft") slbNav(-1);
+    if (e.key === "ArrowRight") slbNav(1);
   });
 
   let _readmeLoaded = false;
