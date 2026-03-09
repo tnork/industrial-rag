@@ -89,7 +89,7 @@ EMBEDDING_MODEL      = "clip-ViT-B-32"        # CLIP image encoder — embeds im
 TEXT_EMBEDDING_MODEL = "all-MiniLM-L6-v2"    # MiniLM — dense text retrieval for text chunks + queries (384-dim)
 CLAUDE_MODEL         = "claude-opus-4-6"
 IMAGE_THRESHOLD      = 0.30
-MAX_CLAUDE_IMGS      = 2                      # max chunk images per Claude request (keep low to reduce vision token overhead)
+MAX_CLAUDE_IMGS      = 2                      # max chunk images per Claude request (top 2 most relevant)
 CLAUDE_IMG_MIN_SIM   = 0.20                   # minimum cosine similarity to send an image to Claude (skip low-relevance figures)
 CLAUDE_IMG_SIDE      = 768                    # resize images to this max dimension before sending to Claude
 SEP             = "─" * 80
@@ -466,6 +466,7 @@ def _build_parse_text(parse_response, pdf_path: Path) -> str:
         "SOURCE",   SEP, str(pdf_path), SEP, "",
         "METADATA", SEP, json.dumps(full["metadata"], indent=2, default=str), SEP, "",
         "CHUNKS",   SEP, json.dumps(full.get("chunks", []), indent=2, default=str), SEP, "",
+        "GROUNDING", SEP, json.dumps(full.get("grounding", {}), indent=2, default=str), SEP, "",
         "SPLITS",   SEP, json.dumps(full.get("splits", []), indent=2, default=str), SEP, "",
         "MARKDOWN", SEP, parse_response.markdown or "", SEP,
     ])
@@ -606,10 +607,11 @@ def _parse_one(client, category: str, pdf_path: Path) -> bool:
 
 def _parse_split(client, category: str, pdf_path: Path, total_pages: int,
                  images_dir: Path, result_file: Path) -> bool:
-    parts        = _split_pdf(pdf_path)
-    all_chunks   = []
-    all_markdown = []
-    total_chunks = 0
+    parts           = _split_pdf(pdf_path)
+    all_chunks      = []
+    all_grounding   = {}
+    all_markdown    = []
+    total_chunks    = 0
 
     try:
         for part_idx, (page_offset, tmp_path) in enumerate(parts):
@@ -629,6 +631,13 @@ def _parse_split(client, category: str, pdf_path: Path, total_pages: int,
                     grounding["page"] += page_offset
                 all_chunks.append(chunk)
 
+            # Merge top-level grounding (confidence scores), adjusting page numbers
+            for uid, gdata in (part_data.get("grounding") or {}).items():
+                entry = dict(gdata) if gdata else {}
+                if "page" in entry and entry["page"] is not None:
+                    entry["page"] = entry["page"] + page_offset
+                all_grounding[uid] = entry
+
             for i, chunk in enumerate(part_data.get("chunks", [])):
                 _crop_single_chunk(tmp_path, chunk, i + total_chunks,
                                    (chunk.get("grounding") or {}).get("page", page_offset) - page_offset,
@@ -645,9 +654,10 @@ def _parse_split(client, category: str, pdf_path: Path, total_pages: int,
             tmp_path.unlink(missing_ok=True)
 
     merged = {
-        "metadata": {"page_count": total_pages, "source": str(pdf_path), "split": True},
-        "chunks":   all_chunks,
-        "splits":   [],
+        "metadata":  {"page_count": total_pages, "source": str(pdf_path), "split": True},
+        "chunks":    all_chunks,
+        "grounding": all_grounding,
+        "splits":    [],
     }
 
     class _FakeResp:
@@ -659,13 +669,25 @@ def _parse_split(client, category: str, pdf_path: Path, total_pages: int,
     return True
 
 
-def run_parse(parse_all: bool = False, limit: int = 2):
+def run_parse(parse_all: bool = False, limit: int = 2, force: bool = False):
     from landingai_ade import LandingAIADE
 
     pdfs = _collect_pdfs()
     if not pdfs:
         print(f"No PDFs found under {INPUT_DIR}. Run with --download first.")
         sys.exit(1)
+
+    if force:
+        # Delete existing parse results so they are re-parsed from scratch
+        import shutil
+        deleted = 0
+        for cat, p in pdfs:
+            result_file = PARSE_RESULTS / cat / f"{p.stem}.txt"
+            if result_file.exists():
+                result_file.unlink()
+                deleted += 1
+        if deleted:
+            print(f"  [force] Deleted {deleted} existing parse result(s) — will re-parse")
 
     pending = [(cat, p) for cat, p in pdfs if not (PARSE_RESULTS / cat / f"{p.stem}.txt").exists()]
     batch   = pdfs if parse_all else pending[:limit]
@@ -737,17 +759,31 @@ def _load_all_chunks() -> list[dict]:
         except json.JSONDecodeError:
             continue
 
+        # Top-level grounding dict (keyed by chunk UUID) — contains confidence scores.
+        # Present only in files parsed on or after 2026-02-12 (ADE confidence launch).
+        top_grounding: dict = {}
+        grounding_match = re.search(r"GROUNDING\n─+\n(.*?)\n─+\n", raw, re.DOTALL)
+        if grounding_match:
+            try:
+                top_grounding = json.loads(grounding_match.group(1))
+            except json.JSONDecodeError:
+                pass
+
         for chunk in chunks:
-            grounding = chunk.get("grounding") or {}
-            box       = grounding.get("box", {})
+            grounding  = chunk.get("grounding") or {}
+            box        = grounding.get("box", {})
+            chunk_id   = chunk.get("id", "")
+            top_gdata  = top_grounding.get(chunk_id) or {}
+            confidence = top_gdata.get("confidence")  # float 0–1 or None
             all_chunks.append({
                 "_source_file": str(txt_file.relative_to(BASE_DIR)),
                 "_category":    category,
                 "_doc_stem":    stem,
-                "id":           chunk.get("id", ""),
+                "id":           chunk_id,
                 "chunk_type":   chunk.get("type", "unknown"),
                 "page":         grounding.get("page", 0),
                 "text":         re.sub(r"<a[^>]*>.*?</a>", "", chunk.get("markdown", ""), flags=re.DOTALL).strip(),
+                "confidence":   confidence,
                 "bbox": {
                     "left":   box.get("left",   0),
                     "top":    box.get("top",    0),
@@ -774,9 +810,12 @@ def _deduplicate_chunks(chunks: list, vectors) -> tuple:
     keep_idx    = []
     removed_ids = []
     for i, chunk in enumerate(chunks):
-        text = chunk.get("text", "").strip()
-        if text not in seen_text:
-            seen_text[text] = i
+        # Normalize: collapse whitespace and lowercase so near-identical chunks
+        # from different manual revisions (minor wording/spacing differences) are
+        # treated as duplicates. Original text is preserved in the stored chunk.
+        text_key = re.sub(r'\s+', ' ', chunk.get("text", "")).strip().lower()
+        if text_key not in seen_text:
+            seen_text[text_key] = i
             keep_idx.append(i)
         else:
             removed_ids.append(chunk.get("id", ""))
@@ -1157,32 +1196,32 @@ def make_flask_app(vs, image_map):
                         "doc":        h["_doc_stem"],
                         "category":   h["_category"],
                         "bbox":       h.get("bbox", {}),
+                        "confidence": h.get("confidence"),
                     })
 
                 yield f"data: {json.dumps({'type': 'sources', 'sources': sources})}\n\n"
 
-                # Build multimodal user message: send at most 1 image to Claude —
-                # only if the top-ranked result is an image chunk and meets the
-                # minimum similarity threshold. This makes vision usage adaptive:
-                # visual questions (diagram ranked #1) get 1 image; text/lookup
-                # questions (text passage ranked #1) get 0 images.
+                # Build multimodal user message: send up to MAX_CLAUDE_IMGS images —
+                # one per image chunk that meets the minimum similarity threshold,
+                # in ranked order. Text-only chunks and low-similarity hits are
+                # excluded. If no hits qualify, only the text question is sent.
                 user_content = []
-                top = hits[0] if hits else None
-                if (top and top.get("similarity", 0) >= CLAUDE_IMG_MIN_SIM
-                        and image_map.get(top["id"])):
-                    img = image_map[top["id"]]
-                    try:
-                        img_b64 = _encode_image_for_claude(img)
-                        user_content.append({
-                            "type": "image",
-                            "source": {
-                                "type":       "base64",
-                                "media_type": "image/jpeg",
-                                "data":       img_b64,
-                            },
-                        })
-                    except Exception:
-                        pass
+                for h in hits:
+                    if (h.get("similarity", 0) >= CLAUDE_IMG_MIN_SIM
+                            and image_map.get(h["id"])
+                            and len(user_content) < MAX_CLAUDE_IMGS):
+                        try:
+                            img_b64 = _encode_image_for_claude(image_map[h["id"]])
+                            user_content.append({
+                                "type": "image",
+                                "source": {
+                                    "type":       "base64",
+                                    "media_type": "image/jpeg",
+                                    "data":       img_b64,
+                                },
+                            })
+                        except Exception:
+                            pass
                 user_content.append({"type": "text", "text": question})
 
                 with ant_client.messages.stream(
@@ -1244,6 +1283,7 @@ def main():
     # ── Parse mode ────────────────────────────────────────────────────────────
     if "--parse" in flags:
         parse_all = "--all" in flags
+        force     = "--force" in flags
         limit = 2
         for arg in args:
             if arg.startswith("--limit="):
@@ -1252,7 +1292,7 @@ def main():
                 idx = args.index(arg)
                 if idx + 1 < len(args):
                     limit = int(args[idx + 1])
-        run_parse(parse_all=parse_all, limit=limit)
+        run_parse(parse_all=parse_all, limit=limit, force=force)
         return
 
     # ── RAG modes — build shared resources ───────────────────────────────────

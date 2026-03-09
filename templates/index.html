@@ -1005,6 +1005,7 @@
     sources.forEach(s => {
       const pct = Math.round(s.similarity * 100);
       const card = document.createElement("div");
+
       card.className = "sc";
 
       const cleanText = esc(stripHtml(s.text || ''));

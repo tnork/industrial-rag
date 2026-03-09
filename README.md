@@ -12,17 +12,17 @@ short_description: Visually-grounded RAG for GE Connect manuals
 
 # GE Connect Technical Assistant
 
-A multimodal RAG assistant for GE Connect Series HVAC product manuals. Ask a question in plain English — get a precise, sourced answer with the exact page region it came from. **This is a demo** — see the production notes below for what you'd change in a real deployment.
+A multimodal RAG assistant for GE Connect Series product manuals. Ask a question in plain English — get a precise, sourced answer with the exact page region it came from.
 
-- **The problem** — HVAC technical docs (installation manuals, service guides, wiring schematics, spec sheets) are dense, visually complex, and spread across multiple revision versions. Finding a torque spec or error code means page-flipping through hundreds of pages.
-- **The solution** — dual-encoder retrieval + Claude vision surfaces the right chunk, reads diagrams the way a human would, and cites the exact source. No hallucinations, no missing context.
+- **The problem** — Technical docs (installation manuals, service guides, wiring schematics, spec sheets) are dense, visually complex, and spread across multiple revision versions. Finding a spec or error code means page-flipping through hundreds of pages, being limited to keyword search, or LLM knowledge without grounding for accuracy.
+- **The solution** — LandingAI ADE API ouput for markdown, JSON bounding box locations, and confidence scores + dual-encoder retrieval for text and image + Claude vision. Surfaces the right information, reads diagrams the way a human would, finds the right information, and cites the exact source. No hallucinations, no missing context.
 - **The broader pattern** — the same architecture applies anywhere high-stakes decisions depend on visually complex documents: financial services, healthcare, manufacturing, logistics. In those domains, text-only RAG isn't just incomplete — stripping the visual layer from a wiring diagram or dosage table can produce confidently wrong answers.
 
 ## What it does
 
 - Answers technical questions about GE Connect Series heat pumps and related equipment
 - Retrieves relevant context from 10 GE Connect Series PDFs (service manuals, installation manuals, spec sheets, specification guide, submittal docs) spanning Aug 2020 – Nov 2022
-- **Parsed with LandingAI Agentic Document Extraction (ADE)** — extracts figures, tables, and text blocks with precise bounding boxes, enabling the RAG system to retrieve the exact page region that answers a question
+- **Parsed with LandingAI Agentic Document Extraction (ADE)** — extracts figures, tables, and text blocks accurately with precise bounding boxes and confidence scores, enabling the RAG system to retrieve the exact page region that answers a question
 - **Dual-encoder retrieval** — image chunks embedded with `clip-ViT-B-32` (visual content) and text-only chunks embedded with `all-MiniLM-L6-v2` (semantic search); both ranked lists merged per query using Reciprocal Rank Fusion (RRF) so neither encoder dominates
 - **Adaptive vision** — sends 0 or 1 image to Claude per request: an image is included only when the top-ranked result is an image chunk that meets a minimum similarity threshold; purely textual queries incur no vision token cost
 - Streams answers via Claude Opus 4.6 with source citations; each source card shows the chunk image and a text snippet
