@@ -55,9 +55,11 @@ VECTORS_FILE  = VECTOR_DIR / "embeddings.npy"
 DOCS_FILE     = VECTOR_DIR / "documents.json"
 INDEXED_FILE  = VECTOR_DIR / "indexed_files.json"
 
-EMBEDDING_MODEL = "all-MiniLM-L6-v2"
-CLAUDE_MODEL    = "claude-opus-4-6"
-IMAGE_THRESHOLD = 0.30
+EMBEDDING_MODEL  = "clip-ViT-B-32"   # vision-language model; encodes images + text in same 512-dim space
+CLAUDE_MODEL     = "claude-opus-4-6"
+IMAGE_THRESHOLD  = 0.30
+MAX_CLAUDE_IMGS  = 5                  # max chunk images to include in each Claude request
+CLAUDE_IMG_SIDE  = 768                # resize images to this max dimension before sending to Claude
 SEP             = "─" * 80
 
 
@@ -747,12 +749,27 @@ def _build_chunk_image_map() -> dict[str, Path]:
     return image_map
 
 
+def _encode_image_for_claude(img_path: Path, max_side: int = CLAUDE_IMG_SIDE) -> str:
+    """Resize a chunk PNG and return a base64-encoded JPEG string for Claude's vision API."""
+    import io
+    from PIL import Image
+    img = Image.open(img_path).convert("RGB")
+    w, h = img.size
+    if max(w, h) > max_side:
+        scale = max_side / max(w, h)
+        img = img.resize((int(w * scale), int(h * scale)), Image.LANCZOS)
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=85)
+    return base64.b64encode(buf.getvalue()).decode()
+
+
 def build_vector_store(force: bool = False):
     import numpy as np
     from sentence_transformers import SentenceTransformer
+    from PIL import Image
 
     VECTOR_DIR.mkdir(exist_ok=True)
-    embedder    = SentenceTransformer(EMBEDDING_MODEL)
+    embedder     = SentenceTransformer(EMBEDDING_MODEL)
     store_exists = VECTORS_FILE.exists() and DOCS_FILE.exists()
 
     if store_exists and not force:
@@ -764,22 +781,54 @@ def build_vector_store(force: bool = False):
         new_count = len(set(current) - set(indexed))
         if new_count:
             print(f"  ⚠  {new_count} new parse file(s) not yet indexed — run with --rebuild to update")
-        print(f"✓ {len(store)} chunks loaded from vector store")
+        print(f"✓ {len(store)} chunks loaded from vector store ({vectors.shape[1]}-dim CLIP)")
         return embedder, vectors, store
 
-    current = _current_parse_files()
+    current   = _current_parse_files()
+    image_map = _build_chunk_image_map()
     print("Building vector store from parse results...")
     chunks = _load_all_chunks()
     print(f"  Found {len(chunks)} chunks across {len(current)} parse files")
-    texts   = [c["text"] for c in chunks]
-    print(f"  Embedding {len(texts)} chunks with {EMBEDDING_MODEL}...")
-    vectors = embedder.encode(texts, show_progress_bar=True, convert_to_numpy=True)
+
+    # Separate chunks that have a matching image from text-only chunks.
+    # CLIP encodes images and text in the same 512-dim embedding space, so
+    # image chunks are embedded from their visual content — not their (often
+    # short) captions — giving much better retrieval for diagrams and figures.
+    img_indices, txt_indices = [], []
+    img_inputs, txt_inputs   = [], []
+    for i, chunk in enumerate(chunks):
+        img_path = image_map.get(chunk["id"])
+        if img_path and img_path.exists():
+            img_indices.append(i)
+            img_inputs.append(Image.open(img_path).convert("RGB"))
+        else:
+            txt_indices.append(i)
+            txt_inputs.append(chunk["text"])
+
+    dim     = embedder.get_sentence_embedding_dimension()
+    vectors = np.zeros((len(chunks), dim), dtype=np.float32)
+
+    if img_inputs:
+        print(f"  Encoding {len(img_inputs)} image chunks (CLIP)...")
+        img_vecs = embedder.encode(img_inputs, show_progress_bar=True,
+                                   convert_to_numpy=True, batch_size=32)
+        for i, vec in zip(img_indices, img_vecs):
+            vectors[i] = vec
+
+    if txt_inputs:
+        print(f"  Encoding {len(txt_inputs)} text-only chunks (CLIP text encoder)...")
+        txt_vecs = embedder.encode(txt_inputs, show_progress_bar=True,
+                                   convert_to_numpy=True, batch_size=128)
+        for i, vec in zip(txt_indices, txt_vecs):
+            vectors[i] = vec
+
     chunks, vectors, removed_ids = _deduplicate_chunks(chunks, vectors)
     _delete_orphaned_images(removed_ids)
     np.save(VECTORS_FILE, vectors)
     DOCS_FILE.write_text(json.dumps(chunks, indent=2), encoding="utf-8")
     INDEXED_FILE.write_text(json.dumps(current, indent=2), encoding="utf-8")
-    print(f"✓ Vector store saved ({len(chunks)} unique chunks)")
+    print(f"✓ Vector store saved ({len(chunks)} unique chunks, {dim}-dim CLIP, "
+          f"{len(img_inputs)} image-embedded / {len(txt_inputs)} text-embedded)")
     return embedder, vectors, chunks
 
 
@@ -973,17 +1022,43 @@ def make_flask_app(embedder, vectors, store, image_map):
 
                 yield f"data: {json.dumps({'type': 'sources', 'sources': sources})}\n\n"
 
+                # Build multimodal user message: attach chunk images so Claude
+                # can reason over the actual visual content (wiring diagrams,
+                # spec tables, installation figures) not just their text captions.
+                user_content = []
+                img_count = 0
+                for h in hits:
+                    if img_count >= MAX_CLAUDE_IMGS:
+                        break
+                    img = image_map.get(h["id"])
+                    if img:
+                        try:
+                            img_b64 = _encode_image_for_claude(img)
+                            user_content.append({
+                                "type": "image",
+                                "source": {
+                                    "type":       "base64",
+                                    "media_type": "image/jpeg",
+                                    "data":       img_b64,
+                                },
+                            })
+                            img_count += 1
+                        except Exception:
+                            pass
+                user_content.append({"type": "text", "text": question})
+
                 with ant_client.messages.stream(
                     model=CLAUDE_MODEL,
                     max_tokens=1024,
                     system=(
-                        "You are a technical support assistant for GE Appliances HVAC products. "
-                        "Answer questions using only the retrieved context from GE HVAC product manuals, "
-                        "installation guides, service manuals, and spec sheets below. "
-                        "If the answer is not in the context, say so.\n\n"
+                        "You are a technical support assistant for GE Connect Series HVAC products. "
+                        "Answer questions using the retrieved context and the chunk images provided. "
+                        "The images are visual excerpts (page crops) from GE Connect Series service "
+                        "manuals and installation guides — refer to them when answering. "
+                        "If the answer is not in the context or images, say so.\n\n"
                         f"{context}"
                     ),
-                    messages=[{"role": "user", "content": question}],
+                    messages=[{"role": "user", "content": user_content}],
                 ) as stream:
                     for text in stream.text_stream:
                         yield f"data: {json.dumps({'type': 'token', 'text': text})}\n\n"

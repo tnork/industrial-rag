@@ -1,5 +1,5 @@
 anthropic
-sentence-transformers
+sentence-transformers[clip]
 numpy
 flask
 gunicorn
@@ -8,3 +8,4 @@ pymupdf
 Pillow
 requests
 beautifulsoup4
+# sentence-transformers[clip] pulls in torch + open_clip_torch for clip-ViT-B-32
