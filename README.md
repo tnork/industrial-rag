@@ -7,7 +7,7 @@ sdk: docker
 app_port: 7860
 pinned: false
 license: mit
-short_description: RAG assistant for GE Connect Series product manuals with visual grounding
+short_description: Visually-grounded RAG for GE Connect manuals
 ---
 
 # GE Connect Technical Assistant
