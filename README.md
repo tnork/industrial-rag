@@ -24,7 +24,7 @@ A multimodal RAG assistant for GE Connect Series product manuals. Ask a question
 - Retrieves relevant context from 10 GE Connect Series PDFs (service manuals, installation manuals, spec sheets, specification guide, submittal docs) spanning Aug 2020 – Nov 2022
 - **Parsed with LandingAI Agentic Document Extraction (ADE)** — extracts figures, tables, and text blocks accurately with precise bounding boxes and confidence scores, enabling the RAG system to retrieve the exact page region that answers a question
 - **Dual-encoder retrieval** — image chunks embedded with `clip-ViT-B-32` (visual content) and text-only chunks embedded with `all-MiniLM-L6-v2` (semantic search); both ranked lists merged per query using Reciprocal Rank Fusion (RRF) so neither encoder dominates
-- **Adaptive vision** — sends 0 or 1 image to Claude per request: an image is included only when the top-ranked result is an image chunk that meets a minimum similarity threshold; purely textual queries incur no vision token cost
+- **Adaptive vision** — sends 0–2 images to Claude per request: images are included only when top-ranked results are image chunks that meet a minimum similarity threshold; purely textual queries incur no vision token cost
 - Streams answers via Claude Opus 4.6 with source citations; each source card shows the chunk image and a text snippet
 - Includes an Original Doc Viewer for browsing source PDFs (opens in new tab)
 
@@ -43,13 +43,13 @@ A multimodal RAG assistant for GE Connect Series product manuals. Ask a question
 | GE Connect Series Submittal (May 2021) | Submittal / specs |
 | GE Connect Spec Sheet (Aug 2020) | Spec sheet |
 
-**~2,241 unique chunks** after deduplication across overlapping manual versions (2,048 image chunks + 193 text-only chunks).
+**~2,131 unique chunks** after deduplication across overlapping manual versions (2,112 image chunks + 19 text-only chunks).
 
 ## Stack
 
 | Layer | Technology |
 |---|---|
-| LLM | Anthropic `claude-opus-4-6` (streaming + adaptive vision: 0 or 1 image per request) |
+| LLM | Anthropic `claude-opus-4-6` (streaming + adaptive vision: 0–2 images per request) |
 | Text embedding | `sentence-transformers/all-MiniLM-L6-v2` (384-dim, dense text retrieval, local) |
 | Image embedding | `sentence-transformers/clip-ViT-B-32` image encoder (512-dim, visual content, local) |
 | Retrieval fusion | Reciprocal Rank Fusion (RRF, k=60) — merges CLIP and MiniLM ranked lists by rank position, not raw cosine score (scores are incomparable across encoders) |
@@ -79,6 +79,9 @@ python web_app.py --download
 # Parse PDFs with LandingAI ADE (requires VISION_AGENT_API_KEY)
 python web_app.py --parse --all
 
+# Re-parse all PDFs from scratch (e.g. to capture new ADE features like confidence scores)
+python web_app.py --parse --all --force
+
 # Build dual-encoder vector store
 python web_app.py --rebuild
 
@@ -93,7 +96,7 @@ gunicorn --worker-class gthread --threads 4 --timeout 300 --bind 0.0.0.0:7860 ap
 
 This is a demo scoped to GE Connect Series. The same architecture generalizes to any document-heavy domain — equipment manufacturers, financial services, healthcare, logistics — wherever dense, visually complex documentation drives high-stakes decisions. A real deployment would change most of the infrastructure:
 
-- **Vector store** — replace NumPy flat-file scan with a proper vector database (pgvector, Pinecone, Weaviate, Qdrant). Full cosine scan over 1,500 chunks is fine locally; it won't scale.
+- **Vector store** — replace NumPy flat-file scan with a proper vector database (pgvector, Pinecone, Weaviate, Qdrant). Full cosine scan over 2,131 chunks is fine locally; it won't scale.
 - **Embedding** — consider a domain-adapted or higher-capacity model. MiniLM-L6 is fast and surprisingly capable, but larger models (e.g. `bge-large`, `text-embedding-3-large`) close the gap on technical/domain-specific retrieval.
 - **Reranking** — add a cross-encoder reranker (e.g. `ms-marco-MiniLM-L6-reranking`) on top of the dual-encoder retrieval for a significant precision boost.
 - **Auth & rate limiting** — the web UI has no authentication or per-user quota. Add both before exposing publicly.
