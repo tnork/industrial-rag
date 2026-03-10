@@ -69,7 +69,6 @@ import json
 import re
 import sys
 import time
-import zipfile
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import urljoin, urlparse, unquote
@@ -1187,10 +1186,6 @@ def make_flask_app(vs, image_map):
         r = make_response(render_template("index.html"))
         r.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
         return r
-
-    @flask_app.route("/norkintel_logo.svg")
-    def logo():
-        return send_file(BASE_DIR / "norkintel_logo.svg", mimetype="image/svg+xml")
 
     @flask_app.route("/claude-logo-cropped.png")
     def claude_logo():
