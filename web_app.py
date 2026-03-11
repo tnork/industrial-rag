@@ -1179,6 +1179,7 @@ def make_flask_app(vs, image_map):
     from flask import Flask, Response, render_template, send_file, stream_with_context, request, make_response
 
     flask_app  = Flask(__name__, template_folder=str(BASE_DIR / "templates"))
+    flask_app.config["TEMPLATES_AUTO_RELOAD"] = True
     ant_client = anthropic.Anthropic()
 
     @flask_app.route("/")
