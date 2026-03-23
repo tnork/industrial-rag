@@ -299,11 +299,85 @@
     }
     .assistant .text {
       font-size: 16px; line-height: 1.8;
-      color: var(--body); white-space: pre-wrap; word-break: break-word;
+      color: var(--body); word-break: break-word;
     }
 
-    /* markdown-like bold */
+    /* ── Markdown rendering ───────────────────────────────────────────────── */
+    .assistant .text p { margin: 0 0 0.75em; }
+    .assistant .text p:last-child { margin-bottom: 0; }
     .assistant .text b, .assistant .text strong { color: var(--head); font-weight: 600; }
+    .assistant .text em { font-style: italic; }
+    .assistant .text h1, .assistant .text h2, .assistant .text h3,
+    .assistant .text h4, .assistant .text h5, .assistant .text h6 {
+      color: var(--head); font-weight: 700; line-height: 1.3;
+      margin: 1em 0 0.4em;
+    }
+    .assistant .text h1 { font-size: 1.35em; }
+    .assistant .text h2 { font-size: 1.2em; }
+    .assistant .text h3 { font-size: 1.08em; }
+    .assistant .text h4, .assistant .text h5, .assistant .text h6 { font-size: 1em; }
+    .assistant .text ul, .assistant .text ol {
+      padding-left: 1.5em; margin: 0.4em 0 0.75em;
+    }
+    .assistant .text li { margin-bottom: 0.25em; }
+    .assistant .text li > ul, .assistant .text li > ol { margin: 0.2em 0 0.2em; }
+    .assistant .text code {
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+      font-size: 0.875em;
+      background: var(--blue-pale); color: var(--blue-dark);
+      border: 1px solid var(--blue-light);
+      border-radius: 4px; padding: 0.1em 0.4em;
+    }
+    .assistant .text pre {
+      background: var(--bg-mid); border: 1px solid var(--border);
+      border-radius: 8px; padding: 14px 16px; overflow-x: auto;
+      margin: 0.5em 0 0.75em;
+    }
+    .assistant .text pre code {
+      background: none; border: none; padding: 0;
+      font-size: 0.85em; color: var(--body);
+    }
+    .assistant .text blockquote {
+      border-left: 3px solid var(--blue); margin: 0.5em 0 0.75em;
+      padding: 4px 0 4px 14px; color: var(--muted); font-style: italic;
+    }
+    .assistant .text table {
+      width: 100%; border-collapse: collapse;
+      margin: 0.5em 0 0.75em; font-size: 0.93em;
+    }
+    .assistant .text table th {
+      background: var(--blue-pale); color: var(--head);
+      font-weight: 700; text-align: left;
+      padding: 8px 12px; border: 1px solid var(--border);
+    }
+    .assistant .text table td {
+      padding: 7px 12px; border: 1px solid var(--border);
+      vertical-align: top;
+    }
+    .assistant .text table tbody tr:nth-child(even) td { background: var(--bg-mid); }
+    .assistant .text table tbody tr:hover td { background: var(--blue-light); }
+    .assistant .text hr {
+      border: none; border-top: 1px solid var(--border); margin: 0.75em 0;
+    }
+
+    /* ── Copy button ──────────────────────────────────────────────────────── */
+    .msg-body { position: relative; }
+    .copy-btn {
+      position: absolute; bottom: -4px; right: 0;
+      display: flex; align-items: center; gap: 5px;
+      padding: 4px 10px; border-radius: 6px;
+      background: var(--bg); border: 1px solid var(--border);
+      color: var(--muted); font-size: 11px; font-weight: 600;
+      cursor: pointer; letter-spacing: 0.3px;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.15s, background 0.15s, color 0.15s;
+      box-shadow: var(--sh-sm);
+    }
+    .copy-btn svg { flex-shrink: 0; }
+    .message.assistant:hover .copy-btn,
+    .message.assistant:focus-within .copy-btn { opacity: 1; pointer-events: auto; }
+    .copy-btn:hover { background: var(--bg-mid); color: var(--head); }
+    .copy-btn.copied { background: #edfae8; color: #2b8a3e; border-color: #b2f2bb; }
 
     .cursor {
       display: inline-block; width: 2px; height: 17px;
@@ -933,9 +1007,11 @@
         renderSources(d.sources);
       } else if (d.type === "token") {
         full += d.text;
+        textEl.dataset.raw = full;
         textEl.innerHTML = renderMd(full) + '<span class="cursor"></span>';
         scrollDown();
       } else if (d.type === "done") {
+        textEl.dataset.raw = full;
         textEl.innerHTML = renderMd(full);
         es.close(); finish();
       } else if (d.type === "error" || d.error) {
@@ -945,7 +1021,7 @@
     };
     es.onerror = () => {
       if (!full) textEl.textContent = "Connection error — please try again.";
-      else textEl.innerHTML = renderMd(full);
+      else { textEl.dataset.raw = full; textEl.innerHTML = renderMd(full); }
       es.close(); finish();
     };
   }
@@ -962,7 +1038,12 @@
     div.className = "message " + role;
     const inner = role === "user"
       ? `<div class="bubble">${esc(text)}</div>`
-      : `<div class="text">${esc(text)}</div>`;
+      : `<div class="text"></div>
+         <button class="copy-btn" aria-label="Copy message" onclick="copyMsg(this)">
+           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+             <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+           </svg>Copy
+         </button>`;
     div.innerHTML = `
       <div class="avatar">${role === "user" ? "U" : "C"}</div>
       <div class="msg-body">
@@ -974,8 +1055,28 @@
     return div;
   }
 
+  function copyMsg(btn) {
+    const raw = btn.closest('.msg-body').querySelector('.text').dataset.raw || '';
+    navigator.clipboard.writeText(raw).then(() => {
+      btn.classList.add('copied');
+      btn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Copied ✓`;
+      setTimeout(() => {
+        btn.classList.remove('copied');
+        btn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>Copy`;
+      }, 1500);
+    });
+  }
+
+  // Configure marked once
+  if (typeof marked !== 'undefined') {
+    marked.setOptions({ gfm: true, breaks: false });
+  }
+
   function renderMd(s) {
-    return esc(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    if (typeof marked === 'undefined') {
+      return esc(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    }
+    try { return marked.parse(s); } catch (_) { return esc(s); }
   }
 
   function clearSources(loading) {
